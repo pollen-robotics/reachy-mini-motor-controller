@@ -3,6 +3,10 @@ name = "reachy-mini-motor-controller"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "lib"]
+
 [dependencies]
-rustypot = { version = "0.7.0", path = "../../Dev/V2/rustypot" }
+pyo3 = "0.25.0"
+pyo3-log = "0.12.4"
 serialport = "4.7.2"
