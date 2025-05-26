@@ -9,4 +9,5 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 pyo3 = "0.25.0"
 pyo3-log = "0.12.4"
+rustypot = { git = "https://github.com/pollen-robotics/rustypot.git", branch = "next-release-1.0" }
 serialport = "4.7.2"
