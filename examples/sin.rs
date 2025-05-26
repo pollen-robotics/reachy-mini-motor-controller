@@ -17,9 +17,9 @@ fn main() {
         let t = t0.elapsed().as_secs_f64();
         let pos = (2.0 * PI * freq * t).sin() * amp;
 
-        c.set_goal_positions([pos; 9]).unwrap();
+        c.set_all_goal_positions([pos; 9]).unwrap();
 
-        let cur = c.read_positions().unwrap();
+        let cur = c.read_all_positions().unwrap();
 
         let errors = cur
             .iter()
