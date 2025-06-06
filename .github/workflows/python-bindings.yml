@@ -102,9 +102,6 @@ jobs:
         with:
           python-version: 3.x
           architecture: ${{ matrix.platform.target }}
-      - name: Generate pyo3 stub
-        run: |
-          cargo run --bin stub_gen
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
