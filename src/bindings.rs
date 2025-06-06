@@ -1,13 +1,19 @@
 use pyo3::prelude::*;
+use pyo3_stub_gen::{
+    define_stub_info_gatherer,
+    derive::{gen_stub_pyclass, gen_stub_pymethods},
+};
 
 use crate::ReachyMiniMotorController as Controller;
 
+#[gen_stub_pyclass]
 #[pyclass(frozen)]
 
 struct ReachyMiniMotorController {
     inner: std::sync::Mutex<Controller>,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl ReachyMiniMotorController {
     #[new]
@@ -104,3 +110,5 @@ fn reachy_mini_motor_controller(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
+
+define_stub_info_gatherer!(stub_info);
