@@ -27,7 +27,7 @@ impl ReachyMiniMotorController {
         pos.extend(xl330::sync_read_present_position(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &vec![1, 2, 3, 4, 5, 6, 11, 21, 22],
+            &vec![11, 21, 22, 1, 2, 3, 4, 5, 6],
         )?);
 
         Ok(pos.try_into().unwrap())
