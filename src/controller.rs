@@ -36,6 +36,28 @@ impl ReachyMiniMotorController {
         Ok(err.try_into().unwrap())
     }
 
+    pub fn set_dxl_operating_mode(&mut self, mode: u8) -> Result<(), Box<dyn std::error::Error>> {
+        xl330::sync_write_operating_mode(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &vec![1, 2, 3, 4, 5, 6],
+            &[mode, mode, mode, mode, mode, mode],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn set_dxl_current_limit(&mut self, limit: u16) -> Result<(), Box<dyn std::error::Error>> {
+        xl330::sync_write_current_limit(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &vec![1, 2, 3, 4, 5, 6],
+            &[limit, limit, limit, limit, limit, limit],
+        )?;
+
+        Ok(())
+    }
+
     pub fn read_all_positions(&mut self) -> Result<[f64; 9], Box<dyn std::error::Error>> {
         let mut pos = Vec::new();
 
