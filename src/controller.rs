@@ -78,6 +78,27 @@ impl ReachyMiniMotorController {
         Ok(l.try_into().unwrap())
     }
 
+    pub fn set_dxl_goal_current(&mut self, goal: i16) -> Result<(), Box<dyn std::error::Error>> {
+        xl330::sync_write_goal_current(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &vec![1, 2, 3, 4, 5, 6],
+            &[goal, goal, goal, goal, goal, goal],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn get_dxl_goal_current(&mut self) -> Result<[i16; 6], Box<dyn std::error::Error>> {
+        let l = xl330::sync_read_goal_current(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &vec![1, 2, 3, 4, 5, 6],
+        )?;
+
+        Ok(l.try_into().unwrap())
+    }
+
     pub fn read_all_positions(&mut self) -> Result<[f64; 9], Box<dyn std::error::Error>> {
         let mut pos = Vec::new();
 
