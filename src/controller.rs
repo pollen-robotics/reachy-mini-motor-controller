@@ -24,6 +24,18 @@ impl ReachyMiniMotorController {
         })
     }
 
+    pub fn read_dxl_hardware_error_status(
+        &mut self,
+    ) -> Result<[u8; 6], Box<dyn std::error::Error>> {
+        let err = xl330::sync_read_hardware_error_status(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &vec![1, 2, 3, 4, 5, 6],
+        )?;
+
+        Ok(err.try_into().unwrap())
+    }
+
     pub fn read_all_positions(&mut self) -> Result<[f64; 9], Box<dyn std::error::Error>> {
         let mut pos = Vec::new();
 
