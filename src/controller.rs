@@ -122,4 +122,19 @@ impl ReachyMiniMotorController {
 
         Ok(())
     }
+
+    pub fn set_stewart_platform_goal_current(
+        &mut self,
+        current: [i16; 6],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+
+        xl330::sync_write_goal_current(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[1, 2, 3, 4, 5, 6],
+            &current,
+        )?;
+
+        Ok(())
+    }
 }

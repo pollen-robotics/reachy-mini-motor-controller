@@ -100,6 +100,17 @@ impl ReachyMiniMotorController {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
+
+    fn set_stewart_platform_goal_current(&self, current: [i16; 6]) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .set_stewart_platform_goal_current(current)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
 }
 
 #[pyo3::pymodule]
