@@ -6,7 +6,7 @@ Also provides a python binding available via pip.
 ## To install locally 
 ```bash
 pip install maturin
-``
+```
 
 ## To build the wheel
 ```bash
