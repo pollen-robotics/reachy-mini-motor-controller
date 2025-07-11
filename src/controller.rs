@@ -181,7 +181,7 @@ impl ReachyMiniMotorController {
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
         sts3215::sync_write_mode(
-            &self.dph_v2,
+            &self.dph_v1,
             self.serial_port.as_mut(),
             &[21, 22],
             &[mode; 2],
