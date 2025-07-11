@@ -47,6 +47,26 @@ impl ReachyMiniMotorController {
     #[pyo3(text_signature = "($self, positions)")]
     /// Set goal positions for all motors
     /// positions: [body_rotation, antenna_left, antenna_right, stewart_1..6]
+    fn read_stewart_platform_current(&self) -> PyResult<[i16; 6]> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .read_stewart_platform_current()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    fn read_stewart_platform_operating_mode(&self) -> PyResult<[u8; 6]> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .read_stewart_platform_operating_mode()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     fn set_all_goal_positions(&self, positions: [f64; 9]) -> PyResult<()> {
         with_controller!(self, |inner| inner.set_all_goal_positions(positions))?;
         Ok(())
@@ -79,6 +99,75 @@ impl ReachyMiniMotorController {
         with_controller!(self, |inner| inner.set_stewart_platform_goal_current(current))?;
         Ok(())
     }
+
+    fn set_stewart_platform_operating_mode(&self, mode: u8) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .set_stewart_platform_operating_mode(mode)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    fn set_antennas_operating_mode(&self, mode: u8) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .set_antennas_operating_mode(mode)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+
+
+    fn set_body_rotation_operating_mode(&self, mode: u8) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .set_body_rotation_operating_mode(mode)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    fn enable_body_rotation(&self, enable: bool) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .enable_body_rotation(enable)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    fn enable_antennas(&self, enable: bool) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .enable_antennas(enable)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    fn enable_stewart_platform(&self, enable: bool) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .enable_stewart_platform(enable)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
 }
 
 macro_rules! with_controller {
