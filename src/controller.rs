@@ -127,7 +127,6 @@ impl ReachyMiniMotorController {
         &mut self,
         current: [i16; 6],
     ) -> Result<(), Box<dyn std::error::Error>> {
-
         xl330::sync_write_goal_current(
             &self.dph_v2,
             self.serial_port.as_mut(),
@@ -194,12 +193,7 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_mode(
-            &self.dph_v1,
-            self.serial_port.as_mut(),
-            &[11],
-            &[mode],
-        )?;
+        sts3215::sync_write_mode(&self.dph_v1, self.serial_port.as_mut(), &[11], &[mode])?;
 
         Ok(())
     }
@@ -226,7 +220,10 @@ impl ReachyMiniMotorController {
         Ok(())
     }
 
-    pub fn enable_stewart_platform(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn enable_stewart_platform(
+        &mut self,
+        enable: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         xl330::sync_write_torque_enable(
             &self.dph_v2,
             self.serial_port.as_mut(),
@@ -236,7 +233,4 @@ impl ReachyMiniMotorController {
 
         Ok(())
     }
-
-
-
 }
