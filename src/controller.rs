@@ -231,6 +231,19 @@ impl ReachyMiniMotorController {
         )?;
         Ok(())
     }
+
+    pub fn read_stewart_platform_current(
+        &mut self,
+    ) -> Result<[i16; 6], Box<dyn std::error::Error>> {
+        let currents = xl330::sync_read_present_current(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &STEWART_PLATFORM_IDS,
+        )?;
+        
+        currents.try_into()
+            .map_err(|v: Vec<i16>| format!("Expected 6 current values, got {}", v.len()).into())
+    }
     
     // Additional methods for API symmetry
     
