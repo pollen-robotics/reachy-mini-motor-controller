@@ -262,5 +262,102 @@ impl ReachyMiniMotorController {
         
         positions.try_into()
             .map_err(|v: Vec<f64>| format!("Expected 6 stewart positions, got {}", v.len()).into())
+      
+    pub fn read_stewart_platform_current(
+        &mut self,
+    ) -> Result<[i16; 6], Box<dyn std::error::Error>> {
+        let currents = xl330::sync_read_present_current(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[1, 2, 3, 4, 5, 6],
+        )?;
+
+        Ok(currents.try_into().unwrap())
+    }
+
+    pub fn set_stewart_platform_operating_mode(
+        &mut self,
+        mode: u8,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        xl330::sync_write_operating_mode(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[1, 2, 3, 4, 5, 6],
+            &[mode; 6],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn read_stewart_platform_operating_mode(
+        &mut self,
+    ) -> Result<[u8; 6], Box<dyn std::error::Error>> {
+        let modes = xl330::sync_read_operating_mode(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[1, 2, 3, 4, 5, 6],
+        )?;
+
+        Ok(modes.try_into().unwrap())
+    }
+
+    pub fn set_antennas_operating_mode(
+        &mut self,
+        mode: u8,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        sts3215::sync_write_mode(
+            &self.dph_v1,
+            self.serial_port.as_mut(),
+            &[21, 22],
+            &[mode; 2],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn set_body_rotation_operating_mode(
+        &mut self,
+        mode: u8,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        sts3215::sync_write_mode(&self.dph_v1, self.serial_port.as_mut(), &[11], &[mode])?;
+
+        Ok(())
+    }
+
+    pub fn enable_body_rotation(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
+        sts3215::sync_write_torque_enable(
+            &self.dph_v1,
+            self.serial_port.as_mut(),
+            &[11],
+            &[enable],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn enable_antennas(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
+        sts3215::sync_write_torque_enable(
+            &self.dph_v1,
+            self.serial_port.as_mut(),
+            &[21, 22],
+            &[enable; 2],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn enable_stewart_platform(
+        &mut self,
+        enable: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        xl330::sync_write_torque_enable(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[1, 2, 3, 4, 5, 6],
+            &[enable; 6],
+        )?;
+
+        Ok(())
+ main
     }
 }
