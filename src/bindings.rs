@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::control_loop::{LastPosition, MotorCommand, ReachyMiniControlLoop};
+use crate::control_loop::{ControlLoopStats, LastPosition, MotorCommand, ReachyMiniControlLoop};
 
 use pyo3::prelude::*;
 use pyo3_stub_gen::{
@@ -213,9 +213,15 @@ struct ReachyMiniPyControlLoop {
 #[pymethods]
 impl ReachyMiniPyControlLoop {
     #[new]
-    fn new(serialport: String, freq: f64, retries: u64) -> PyResult<Self> {
+    fn new(
+        serialport: String,
+        loop_period: Duration,
+        retries: u64,
+        stats_pub_period: Option<Duration>,
+        timeout: Duration,
+    ) -> PyResult<Self> {
         let control_loop =
-            ReachyMiniControlLoop::new(serialport, Duration::from_secs_f64(1.0 / freq), retries)
+            ReachyMiniControlLoop::new(serialport, loop_period, retries, stats_pub_period, timeout)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(ReachyMiniPyControlLoop {
             inner: std::sync::Arc::new(control_loop),
@@ -305,6 +311,12 @@ impl ReachyMiniPyControlLoop {
             .push_command(MotorCommand::EnableAntennas { enable })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
+
+    fn get_stats(&self) -> PyResult<Option<ControlLoopStats>> {
+        self.inner
+            .get_stats()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
 }
 
 #[pyo3::pymodule]
@@ -314,6 +326,7 @@ fn reachy_mini_motor_controller(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ReachyMiniMotorController>()?;
     m.add_class::<ReachyMiniPyControlLoop>()?;
     m.add_class::<LastPosition>()?;
+    m.add_class::<ControlLoopStats>()?;
 
     Ok(())
 }
