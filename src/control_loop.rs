@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 #[gen_stub_pyclass]
 #[pyclass]
 #[derive(Debug, Clone, Copy)]
-pub struct LastPosition {
+pub struct FullBodyPosition {
     #[pyo3(get)]
     pub body_yaw: f64,
     #[pyo3(get)]
@@ -28,10 +28,10 @@ pub struct LastPosition {
 }
 
 #[pymethods]
-impl LastPosition {
+impl FullBodyPosition {
     fn __repr__(&self) -> pyo3::PyResult<String> {
         Ok(format!(
-            "LastPosition(body_yaw={:.3}, stewart={:?}, antennas={:?}, timestamp={:.3})",
+            "FullBodyPosition(body_yaw={:.3}, stewart={:?}, antennas={:?}, timestamp={:.3})",
             self.body_yaw, self.stewart, self.antennas, self.timestamp
         ))
     }
@@ -39,13 +39,13 @@ impl LastPosition {
 
 pub struct ReachyMiniControlLoop {
     tx: Sender<MotorCommand>,
-    last_position: Arc<Mutex<Result<LastPosition, String>>>,
+    last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
     last_stats: Option<Arc<Mutex<ControlLoopStats>>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum MotorCommand {
-    SetAllGoalPositions { positions: [f64; 9] },
+    SetAllGoalPositions { positions: FullBodyPosition },
     SetStewartPlatformPosition { position: [f64; 6] },
     SetBodyRotation { position: f64 },
     SetAntennasPositions { positions: [f64; 2] },
@@ -145,7 +145,7 @@ impl ReachyMiniControlLoop {
         self.tx.blocking_send(command)
     }
 
-    pub fn get_last_position(&self) -> Result<LastPosition, pyo3::PyErr> {
+    pub fn get_last_position(&self) -> Result<FullBodyPosition, pyo3::PyErr> {
         match &*self.last_position.lock().unwrap() {
             Ok(pos) => Ok(*pos),
             Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
@@ -166,7 +166,7 @@ impl ReachyMiniControlLoop {
 fn run(
     mut c: ReachyMiniMotorController,
     mut rx: mpsc::Receiver<MotorCommand>,
-    last_position: Arc<Mutex<Result<LastPosition, String>>>,
+    last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
     last_stats: Option<Arc<Mutex<ControlLoopStats>>>,
     read_period: Duration,
     retries: u64,
@@ -202,7 +202,7 @@ fn run(
                                 let now = std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-                                let last = LastPosition {
+                                let last = FullBodyPosition {
                                     body_yaw: positions[0],
                                     stewart: [positions[1], positions[2], positions[3], positions[4], positions[5], positions[6]],
                                     antennas: [positions[7], positions[8]],
@@ -255,7 +255,17 @@ fn handle_commands(
     use MotorCommand::*;
 
     match command {
-        SetAllGoalPositions { positions } => controller.set_all_goal_positions(positions),
+        SetAllGoalPositions { positions } => controller.set_all_goal_positions([
+            positions.body_yaw,
+            positions.antennas[0],
+            positions.antennas[1],
+            positions.stewart[0],
+            positions.stewart[1],
+            positions.stewart[2],
+            positions.stewart[3],
+            positions.stewart[4],
+            positions.stewart[5],
+        ]),
         SetStewartPlatformPosition { position } => {
             controller.set_stewart_platform_position(position)
         }
@@ -280,7 +290,7 @@ fn handle_commands(
 fn tries_to_get_one_pos(
     c: &mut ReachyMiniMotorController,
     timeout: Duration,
-) -> Result<LastPosition, Box<dyn std::error::Error>> {
+) -> Result<FullBodyPosition, Box<dyn std::error::Error>> {
     let start = std::time::Instant::now();
     loop {
         match c.read_all_positions() {
@@ -288,7 +298,7 @@ fn tries_to_get_one_pos(
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-                return Ok(LastPosition {
+                return Ok(FullBodyPosition {
                     body_yaw: positions[0],
                     stewart: [
                         positions[1],
