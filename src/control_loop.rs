@@ -195,25 +195,21 @@ fn run(
                 _ = interval.tick() => {
                     let read_tick = std::time::Instant::now();
 
-                    match c.read_all_positions() {
+                    match read_pos(&mut c) {
                         Ok(positions) => {
                             error_count = 0;
-                            if positions.len() == 9 {
                                 let now = std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap_or_else(|_| std::time::Duration::from_secs(0));
                                 let last = FullBodyPosition {
-                                    body_yaw: positions[0],
-                                    stewart: [positions[3], positions[4], positions[5], positions[6], positions[7], positions[8]],
-                                    antennas: [positions[1], positions[2]],
+                                    body_yaw: positions.body_yaw,
+                                    stewart: positions.stewart,
+                                    antennas: positions.antennas,
                                     timestamp: now.as_secs_f64(),
                                 };
                                 if let Ok(mut pos) = last_position.lock() {
                                     *pos = Ok(last);
                                 }
-                            } else {
-                                error!("Unexpected positions length: {}", positions.len());
-                            }
                         },
                         Err(e) => {
                             error_count += 1;
@@ -287,34 +283,43 @@ fn handle_commands(
     }
 }
 
+fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, String> {
+    match c.read_all_positions() {
+        Ok(positions) => {
+            if positions.len() == 9 {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_else(|_| std::time::Duration::from_secs(0));
+                Ok(FullBodyPosition {
+                    body_yaw: positions[0],
+                    stewart: [
+                        positions[3],
+                        positions[4],
+                        positions[5],
+                        positions[6],
+                        positions[7],
+                        positions[8],
+                    ],
+                    antennas: [positions[1], positions[2]],
+                    timestamp: now.as_secs_f64(),
+                })
+            } else {
+                Err(format!("Unexpected positions length: {}", positions.len()))
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn tries_to_get_one_pos(
     c: &mut ReachyMiniMotorController,
     timeout: Duration,
 ) -> Result<FullBodyPosition, Box<dyn std::error::Error>> {
     let start = std::time::Instant::now();
     loop {
-        match c.read_all_positions() {
-            Ok(positions) => {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-                return Ok(FullBodyPosition {
-                    body_yaw: positions[0],
-                    stewart: [
-                        positions[1],
-                        positions[2],
-                        positions[3],
-                        positions[4],
-                        positions[5],
-                        positions[6],
-                    ],
-                    antennas: [positions[7], positions[8]],
-                    timestamp: now.as_secs_f64(),
-                });
-            }
-            Err(e) => {
-                warn!("Failed to read positions: {}", e);
-            }
+        match read_pos(c) {
+            Ok(pos) => return Ok(pos),
+            Err(e) => warn!("Failed to read positions: {}", e),
         }
 
         if start.elapsed() > timeout {
