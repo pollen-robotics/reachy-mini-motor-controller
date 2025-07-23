@@ -30,12 +30,12 @@ impl ReachyMiniMotorController {
         pos.extend(sts3215::sync_read_present_position(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &vec![11, 21, 22],
+            &[11, 21, 22],
         )?);
         pos.extend(xl330::sync_read_present_position(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &vec![1, 2, 3, 4, 5, 6],
+            &[1, 2, 3, 4, 5, 6],
         )?);
 
         Ok(pos.try_into().unwrap())
@@ -48,13 +48,13 @@ impl ReachyMiniMotorController {
         sts3215::sync_write_goal_position(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &vec![11, 21, 22],
+            &[11, 21, 22],
             &positions[0..3],
         )?;
         xl330::sync_write_goal_position(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &vec![1, 2, 3, 4, 5, 6],
+            &[1, 2, 3, 4, 5, 6],
             &positions[3..9],
         )?;
 
@@ -68,7 +68,7 @@ impl ReachyMiniMotorController {
         sts3215::sync_write_goal_position(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &vec![21, 22],
+            &[21, 22],
             &positions,
         )?;
 
