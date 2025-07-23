@@ -1,11 +1,11 @@
 use log::{error, warn};
 use pyo3::prelude::*;
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     sync::mpsc::{self, Sender},
@@ -28,8 +28,27 @@ pub struct FullBodyPosition {
     pub timestamp: f64, // seconds since UNIX epoch
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl FullBodyPosition {
+    #[new]
+    pub fn new(body_yaw: f64, stewart: Vec<f64>, antennas: Vec<f64>) -> Self {
+        if stewart.len() != 6 || antennas.len() != 2 {
+            panic!("Stewart platform must have 6 positions and antennas must have 2 positions.");
+        }
+        FullBodyPosition {
+            body_yaw,
+            stewart: [
+                stewart[0], stewart[1], stewart[2], stewart[3], stewart[4], stewart[5],
+            ],
+            antennas: [antennas[0], antennas[1]],
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or(Duration::from_secs(0))
+                .as_secs_f64(),
+        }
+    }
+
     fn __repr__(&self) -> pyo3::PyResult<String> {
         Ok(format!(
             "FullBodyPosition(body_yaw={:.3}, stewart={:?}, antennas={:?}, timestamp={:.3})",
