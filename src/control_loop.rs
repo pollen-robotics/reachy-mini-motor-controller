@@ -204,8 +204,8 @@ fn run(
                                     .unwrap_or_else(|_| std::time::Duration::from_secs(0));
                                 let last = FullBodyPosition {
                                     body_yaw: positions[0],
-                                    stewart: [positions[1], positions[2], positions[3], positions[4], positions[5], positions[6]],
-                                    antennas: [positions[7], positions[8]],
+                                    stewart: [positions[3], positions[4], positions[5], positions[6], positions[7], positions[8]],
+                                    antennas: [positions[1], positions[2]],
                                     timestamp: now.as_secs_f64(),
                                 };
                                 if let Ok(mut pos) = last_position.lock() {
