@@ -278,17 +278,15 @@ impl ReachyMiniPyControlLoop {
     #[new]
     fn new(
         serialport: String,
-        update_loop_period: Duration,
+        read_position_loop_period: Duration,
         allowed_retries: u64,
-        init_timeout: Duration,
         stats_pub_period: Option<Duration>,
     ) -> PyResult<Self> {
         let control_loop = ReachyMiniControlLoop::new(
             serialport,
-            update_loop_period,
-            allowed_retries,
+            read_position_loop_period,
             stats_pub_period,
-            init_timeout,
+            allowed_retries,
         )
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(ReachyMiniPyControlLoop {

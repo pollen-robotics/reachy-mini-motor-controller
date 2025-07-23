@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 
 use std::{
+    fmt::Debug,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -40,7 +41,7 @@ impl FullBodyPosition {
 pub struct ReachyMiniControlLoop {
     tx: Sender<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
-    last_stats: Option<Arc<Mutex<ControlLoopStats>>>,
+    last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,10 +63,10 @@ pub enum MotorCommand {
 
 #[gen_stub_pyclass]
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ControlLoopStats {
     #[pyo3(get)]
-    pub period: Duration,
+    pub period: Vec<f64>,
     #[pyo3(get)]
     pub read_dt: Vec<f64>,
     #[pyo3(get)]
@@ -75,47 +76,49 @@ pub struct ControlLoopStats {
 #[pymethods]
 impl ControlLoopStats {
     fn __repr__(&self) -> pyo3::PyResult<String> {
-        let read_dt_avg = if !self.read_dt.is_empty() {
-            self.read_dt.iter().sum::<f64>() / self.read_dt.len() as f64 * 1000.0
-        } else {
-            0.0
-        };
-
-        let write_dt_avg = if !self.write_dt.is_empty() {
-            self.write_dt.iter().sum::<f64>() / self.write_dt.len() as f64 * 1000.0
-        } else {
-            0.0
-        };
-
         Ok(format!(
-            "ControlLoopStats(period={:?}, read_dt={:.2}ms, write_dt={:.2}ms)",
-            self.period, read_dt_avg, write_dt_avg
+            "ControlLoopStats(period=~{:.2?}ms, read_dt=~{:.2?} ms, write_dt=~{:.2?} ms)",
+            self.period.iter().sum::<f64>() / self.period.len() as f64 * 1000.0,
+            self.read_dt.iter().sum::<f64>() / self.read_dt.len() as f64 * 1000.0,
+            self.write_dt.iter().sum::<f64>() / self.write_dt.len() as f64 * 1000.0,
         ))
+    }
+}
+
+impl std::fmt::Debug for ControlLoopStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.__repr__().unwrap())
     }
 }
 
 impl ReachyMiniControlLoop {
     pub fn new(
         serialport: String,
-        read_period: Duration,
-        retries: u64,
+        read_position_loop_period: Duration,
         stats_pub_period: Option<Duration>,
-        timeout: Duration,
+        read_allowed_retries: u64,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let (tx, rx) = mpsc::channel(100);
 
         let last_stats = stats_pub_period.map(|period| {
-            Arc::new(Mutex::new(ControlLoopStats {
+            (
                 period,
-                read_dt: Vec::new(),
-                write_dt: Vec::new(),
-            }))
+                Arc::new(Mutex::new(ControlLoopStats {
+                    period: Vec::new(),
+                    read_dt: Vec::new(),
+                    write_dt: Vec::new(),
+                })),
+            )
         });
         let last_stats_clone = last_stats.clone();
 
         let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
 
-        let last_position = tries_to_get_one_pos(&mut c, timeout)?;
+        // Init last position by trying to read current positions
+        // If the init fails, it probably means we have an hardware issue
+        // so it's better to fail.
+        let last_position = read_pos_with_retries(&mut c, read_allowed_retries)?;
+        // .map_err(|e| format!("Failed to read initial positions: {}", e))?;
 
         let last_position = Arc::new(Mutex::new(Ok(last_position)));
         let last_position_clone = last_position.clone();
@@ -126,8 +129,8 @@ impl ReachyMiniControlLoop {
                 rx,
                 last_position_clone,
                 last_stats_clone,
-                read_period,
-                retries,
+                read_position_loop_period,
+                read_allowed_retries,
             );
         });
 
@@ -154,7 +157,7 @@ impl ReachyMiniControlLoop {
 
     pub fn get_stats(&self) -> Result<Option<ControlLoopStats>, pyo3::PyErr> {
         match self.last_stats {
-            Some(ref stats) => {
+            Some((_, ref stats)) => {
                 let stats = stats.lock().unwrap();
                 Ok(Some(stats.clone()))
             }
@@ -167,18 +170,20 @@ fn run(
     mut c: ReachyMiniMotorController,
     mut rx: mpsc::Receiver<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
-    last_stats: Option<Arc<Mutex<ControlLoopStats>>>,
-    read_period: Duration,
-    retries: u64,
+    last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
+    read_position_loop_period: Duration,
+    read_allowed_retries: u64,
 ) {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
-        let mut interval = time::interval(read_period);
+        let mut interval = time::interval(read_position_loop_period);
         let mut error_count = 0;
 
         // Stats related variables
         let mut stats_t0 = std::time::Instant::now();
         let mut read_dt = Vec::new();
         let mut write_dt = Vec::new();
+
+        let mut last_read_tick = std::time::Instant::now();
 
         loop {
             tokio::select! {
@@ -194,6 +199,10 @@ fn run(
                 }
                 _ = interval.tick() => {
                     let read_tick = std::time::Instant::now();
+                    if let Some((_, stats)) = &last_stats {
+                        stats.lock().unwrap().period.push(read_tick.duration_since(last_read_tick).as_secs_f64());
+                        last_read_tick = read_tick;
+                    }
 
                     match read_pos(&mut c) {
                         Ok(positions) => {
@@ -213,10 +222,10 @@ fn run(
                         },
                         Err(e) => {
                             error_count += 1;
-                            if error_count < retries {
-                                warn!("Failed to read positions ({}). Retry {}/{}", e, error_count, retries);
+                            if error_count < read_allowed_retries {
+                                warn!("Failed to read positions ({}). Retry {}/{}", e, error_count, read_allowed_retries);
                             } else {
-                                error!("Failed to read positions after {} retries: {}", retries, e);
+                                error!("Failed to read positions after {} retries: {}", read_allowed_retries, e);
                                 if let Ok(mut pos) = last_position.lock() {
                                     *pos = Err(e.to_string());
                                 }
@@ -228,8 +237,8 @@ fn run(
                         read_dt.push(elapsed);
                     }
 
-                    if let Some(stats) = &last_stats {
-                        if stats_t0.elapsed() > stats.lock().unwrap().period {
+                    if let Some((period, stats)) = &last_stats {
+                        if stats_t0.elapsed() > *period {
                             stats.lock().unwrap().read_dt.extend(read_dt.iter().cloned());
                             stats.lock().unwrap().write_dt.extend(write_dt.iter().cloned());
 
@@ -311,22 +320,25 @@ fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, Strin
     }
 }
 
-fn tries_to_get_one_pos(
+fn read_pos_with_retries(
     c: &mut ReachyMiniMotorController,
-    timeout: Duration,
-) -> Result<FullBodyPosition, Box<dyn std::error::Error>> {
-    let start = std::time::Instant::now();
-    loop {
+    retries: u64,
+) -> Result<FullBodyPosition, String> {
+    for i in 0..retries {
         match read_pos(c) {
             Ok(pos) => return Ok(pos),
-            Err(e) => warn!("Failed to read positions: {}", e),
-        }
-
-        if start.elapsed() > timeout {
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "Timeout while trying to read motor positions",
-            )));
+            Err(e) => {
+                warn!(
+                    "Failed to read positions: {}. Retrying... {}/{}",
+                    e,
+                    i + 1,
+                    retries
+                );
+            }
         }
     }
+    Err(format!(
+        "Failed to read positions after {} retries",
+        retries
+    ))
 }
