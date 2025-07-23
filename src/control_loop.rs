@@ -1,17 +1,17 @@
 use log::{error, warn};
+use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
-use std::time::Duration;
 
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio::{
     sync::mpsc::{self, Sender},
     time,
 };
 
 use crate::ReachyMiniMotorController;
-
-use std::sync::{Arc, Mutex};
-
-use pyo3::prelude::*;
 
 #[gen_stub_pyclass]
 #[pyclass]
