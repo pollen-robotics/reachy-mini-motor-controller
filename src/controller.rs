@@ -159,8 +159,8 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_mode(
-            &self.dph_v1,
+        xl330::sync_write_operating_mode(
+            &self.dph_v2,
             self.serial_port.as_mut(),
             &[21, 22],
             &[mode; 2],
@@ -173,25 +173,20 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_mode(&self.dph_v1, self.serial_port.as_mut(), &[11], &[mode])?;
+        xl330::sync_write_operating_mode(&self.dph_v2, self.serial_port.as_mut(), &[11], &[mode])?;
 
         Ok(())
     }
 
     pub fn enable_body_rotation(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_torque_enable(
-            &self.dph_v1,
-            self.serial_port.as_mut(),
-            &[11],
-            &[enable],
-        )?;
+        xl330::sync_write_torque_enable(&self.dph_v2, self.serial_port.as_mut(), &[11], &[enable])?;
 
         Ok(())
     }
 
     pub fn enable_antennas(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_torque_enable(
-            &self.dph_v1,
+        xl330::sync_write_torque_enable(
+            &self.dph_v2,
             self.serial_port.as_mut(),
             &[21, 22],
             &[enable; 2],
