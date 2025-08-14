@@ -311,7 +311,7 @@ fn handle_commands(
     }
 }
 
-fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, String> {
+pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, String> {
     match c.read_all_positions() {
         Ok(positions) => {
             if positions.len() == 9 {
