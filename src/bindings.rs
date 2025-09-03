@@ -35,6 +35,17 @@ impl ReachyMiniMotorController {
         })
     }
 
+    /// Is torque enabled on all motors
+    fn is_torque_enabled(&self) -> PyResult<bool> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .is_torque_enabled()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     /// Enable torque on all motors.
     fn enable_torque(&self) -> PyResult<()> {
         let mut inner = self.inner.lock().map_err(|_| {
@@ -341,6 +352,13 @@ impl ReachyMiniPyControlLoop {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    /// Check torque enabled status.
+    fn is_torque_enabled(&self) -> PyResult<bool> {
+        self.inner
+            .is_torque_enabled()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     /// Enable torque on all motors.
     fn enable_torque(&self) -> PyResult<()> {
         self.inner
@@ -362,6 +380,13 @@ impl ReachyMiniPyControlLoop {
     fn set_stewart_platform_goal_current(&self, current: [i16; 6]) -> PyResult<()> {
         self.inner
             .push_command(MotorCommand::SetStewartPlatformGoalCurrent { current })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Check stewart platform operating mode
+    fn get_stewart_platform_operating_mode(&self) -> PyResult<u8> {
+        self.inner
+            .get_control_mode()
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
