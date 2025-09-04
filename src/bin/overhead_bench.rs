@@ -37,11 +37,11 @@ fn main() {
         let tic = std::time::Instant::now();
         for _ in 0..N {
             let _ =
-                sts3215::sync_read_present_position(&dph_v1, serial_port.as_mut(), &[11, 21, 22]);
+                sts3215::sync_read_present_position(&dph_v1, serial_port.as_mut(), &[11]);
             let _ = xl330::sync_read_present_position(
                 &dph_v2,
                 serial_port.as_mut(),
-                &[1, 2, 3, 4, 5, 6],
+                &[21, 22, 1, 2, 3, 4, 5, 6],
             );
         }
         let elapsed = tic.elapsed();
@@ -58,19 +58,19 @@ fn main() {
             let tic = std::time::Instant::now();
             for _ in 0..N {
                 serial_port.write_all(&sts_msg).unwrap();
-                for _ in 0..3 {
+                for _ in 0..1 {
                     serial_port.read_exact(&mut sts_buf).unwrap();
                 }
                 serial_port.write_all(&xl_msg).unwrap();
-                for _ in 0..6 {
+                for _ in 0..8 {
                     serial_port.read_exact(&mut xl_buf).unwrap();
                 }
             }
             let elapsed = tic.elapsed();
             println!("Serial port read elapsed time: {:?}", elapsed);
 
-            let mut sts_buf = [0u8; 8 * 3];
-            let mut xl_buf = [0u8; 15 * 6];
+            let mut sts_buf = [0u8; 8 * 1];
+            let mut xl_buf = [0u8; 15 * 8];
             let tic = std::time::Instant::now();
             for _ in 0..N {
                 serial_port.write_all(&sts_msg).unwrap();
