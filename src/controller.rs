@@ -120,12 +120,12 @@ impl ReachyMiniMotorController {
         let sts_torque = sts3215::sync_read_torque_enable(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &[11, 21, 22],
+            &[11],
         )?;
         let xl_torque = xl330::sync_read_torque_enable(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &[1, 2, 3, 4, 5, 6],
+            &[21, 22, 1, 2, 3, 4, 5, 6],
         )?;
 
         Ok(sts_torque.iter().all(|&x| x) && xl_torque.iter().all(|&x| x))
