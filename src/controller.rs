@@ -47,12 +47,12 @@ impl ReachyMiniMotorController {
         pos.extend(sts3215::sync_read_present_position(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &[11, 21, 22],
+            &[11],
         )?);
         pos.extend(xl330::sync_read_present_position(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &[1, 2, 3, 4, 5, 6],
+            &[21, 22, 1, 2, 3, 4, 5, 6],
         )?);
 
         Ok(pos.try_into().unwrap())
@@ -65,14 +65,14 @@ impl ReachyMiniMotorController {
         sts3215::sync_write_goal_position(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &[11, 21, 22],
-            &positions[0..3],
+            &[11],
+            &positions[0..1],
         )?;
         xl330::sync_write_goal_position(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &[1, 2, 3, 4, 5, 6],
-            &positions[3..9],
+            &[21, 22, 1, 2, 3, 4, 5, 6],
+            &positions[1..9],
         )?;
 
         Ok(())
@@ -82,8 +82,8 @@ impl ReachyMiniMotorController {
         &mut self,
         positions: [f64; 2],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_goal_position(
-            &self.dph_v1,
+        xl330::sync_write_goal_position(
+            &self.dph_v2,
             self.serial_port.as_mut(),
             &[21, 22],
             &positions,
@@ -142,14 +142,14 @@ impl ReachyMiniMotorController {
         sts3215::sync_write_torque_enable(
             &self.dph_v1,
             self.serial_port.as_mut(),
-            &[11, 21, 22],
-            &[enable; 3],
+            &[11],
+            &[enable; 1],
         )?;
         xl330::sync_write_torque_enable(
             &self.dph_v2,
             self.serial_port.as_mut(),
-            &[1, 2, 3, 4, 5, 6],
-            &[enable; 6],
+            &[21, 22, 1, 2, 3, 4, 5, 6],
+            &[enable; 8],
         )?;
 
         Ok(())
@@ -211,8 +211,8 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_mode(
-            &self.dph_v1,
+        xl330::sync_write_operating_mode(
+            &self.dph_v2,
             self.serial_port.as_mut(),
             &[21, 22],
             &[mode; 2],
@@ -242,8 +242,8 @@ impl ReachyMiniMotorController {
     }
 
     pub fn enable_antennas(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
-        sts3215::sync_write_torque_enable(
-            &self.dph_v1,
+        xl330::sync_write_torque_enable(
+            &self.dph_v2,
             self.serial_port.as_mut(),
             &[21, 22],
             &[enable; 2],
