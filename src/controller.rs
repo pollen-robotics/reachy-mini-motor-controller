@@ -39,6 +39,30 @@ impl ReachyMiniMotorController {
         })
     }
 
+    pub fn reboot(&mut self, on_error_status_only: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let mut error_status = Vec::new();
+        if on_error_status_only {
+            error_status = xl330::sync_read_hardware_error_status(
+                &self.dph_v2,
+                self.serial_port.as_mut(),
+                &self.all_ids,
+            )?;
+        }
+        println!("Error status: {:?}", error_status);
+        
+        let mut last_reboot_id = self.all_ids[0];
+        for (pos, id) in self.all_ids.iter().enumerate() {
+            if !on_error_status_only || (on_error_status_only && error_status[pos] == 1) {
+                self.dph_v2.reboot(self.serial_port.as_mut(), *id as u8)?;
+                last_reboot_id = *id;
+            }
+        }
+        while !self.dph_v2.ping(self.serial_port.as_mut(), last_reboot_id)? {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
+    }
+
     pub fn check_missing_ids(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut missing_ids = Vec::new();
 
