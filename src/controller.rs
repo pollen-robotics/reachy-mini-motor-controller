@@ -23,6 +23,30 @@ impl ReachyMiniMotorController {
             serial_port,
         })
     }
+
+    pub fn reboot(&mut self, on_error_status_only: bool) -> Result<(), Box<dyn std::error::Error>> {
+        // Only for dynamixel motors !
+        let mut error_status = Vec::new();
+        if on_error_status_only {
+            error_status = xl330::sync_read_hardware_error_status(
+                &self.dph_v2,
+                self.serial_port.as_mut(),
+                &[21, 22, 1, 2, 3, 4, 5, 6],
+            )?;
+        }
+        println!("Error status: {:?}", error_status);
+
+        for (idx, val) in [21, 22, 1, 2, 3, 4, 5, 6].iter().enumerate() {
+            if !on_error_status_only || (on_error_status_only && error_status[idx] == 1) {
+                self.dph_v2.reboot(self.serial_port.as_mut(), *val as u8)?;
+            }
+        }
+        while !self.dph_v2.ping(self.serial_port.as_mut(), 6)? {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
+    }
+
     pub fn read_all_voltages(&mut self) -> Result<[u16; 9], Box<dyn std::error::Error>> {
         let mut volt = Vec::new();
 
