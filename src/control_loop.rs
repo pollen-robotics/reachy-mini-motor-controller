@@ -58,6 +58,7 @@ impl FullBodyPosition {
 }
 
 pub struct ReachyMiniControlLoop {
+    loop_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
     stop_signal: Arc<Mutex<bool>>,
     tx: Sender<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
@@ -154,7 +155,7 @@ impl ReachyMiniControlLoop {
         let last_control_mode = Arc::new(Mutex::new(Ok(last_control_mode)));
         let last_control_mode_clone = last_control_mode.clone();
 
-        std::thread::spawn(move || {
+        let loop_handle = std::thread::spawn(move || {
             run(
                 c,
                 stop_signal_clone,
@@ -169,6 +170,7 @@ impl ReachyMiniControlLoop {
         });
 
         Ok(ReachyMiniControlLoop {
+            loop_handle: Arc::new(Mutex::new(Some(loop_handle))),
             stop_signal,
             tx,
             last_position,
@@ -178,9 +180,12 @@ impl ReachyMiniControlLoop {
         })
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         if let Ok(mut stop) = self.stop_signal.lock() {
             *stop = true;
+        }
+        if let Some(handle) = self.loop_handle.lock().unwrap().take() {
+            handle.join().unwrap();
         }
     }
 

@@ -305,6 +305,11 @@ impl ReachyMiniPyControlLoop {
         })
     }
 
+    /// Close the control loop and release resources.
+    fn close(&self) -> PyResult<()> {
+        Ok(self.inner.close())
+    }
+
     /// Get the last successfully read motor positions.
     fn get_last_position(&self) -> PyResult<FullBodyPosition> {
         self.inner
