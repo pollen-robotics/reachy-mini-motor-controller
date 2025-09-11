@@ -139,7 +139,6 @@ impl ReachyMiniControlLoop {
         // If the init fails, it probably means we have an hardware issue
         // so it's better to fail.
         let last_position = read_pos_with_retries(&mut c, read_allowed_retries)?;
-        // .map_err(|e| format!("Failed to read initial positions: {}", e))?;
         let last_torque = read_torque_with_retries(&mut c, read_allowed_retries)?;
         let last_control_mode = read_control_mode_with_retries(&mut c, read_allowed_retries)?;
 
