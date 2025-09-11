@@ -58,6 +58,7 @@ impl FullBodyPosition {
 }
 
 pub struct ReachyMiniControlLoop {
+    stop_signal: Arc<Mutex<bool>>,
     tx: Sender<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
     last_torque: Arc<Mutex<Result<bool, String>>>,
@@ -119,6 +120,9 @@ impl ReachyMiniControlLoop {
         stats_pub_period: Option<Duration>,
         read_allowed_retries: u64,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let stop_signal = Arc::new(Mutex::new(false));
+        let stop_signal_clone = stop_signal.clone();
+
         let (tx, rx) = mpsc::channel(100);
 
         let last_stats = stats_pub_period.map(|period| {
@@ -153,6 +157,7 @@ impl ReachyMiniControlLoop {
         std::thread::spawn(move || {
             run(
                 c,
+                stop_signal_clone,
                 rx,
                 last_position_clone,
                 last_torque_clone,
@@ -164,12 +169,19 @@ impl ReachyMiniControlLoop {
         });
 
         Ok(ReachyMiniControlLoop {
+            stop_signal,
             tx,
             last_position,
             last_torque,
             last_control_mode,
             last_stats,
         })
+    }
+
+    pub fn close(&mut self) {
+        if let Ok(mut stop) = self.stop_signal.lock() {
+            *stop = true;
+        }
     }
 
     pub fn push_command(
@@ -211,8 +223,15 @@ impl ReachyMiniControlLoop {
     }
 }
 
+impl Drop for ReachyMiniControlLoop {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
 fn run(
     mut c: ReachyMiniMotorController,
+    stop_signal: Arc<Mutex<bool>>,
     mut rx: mpsc::Receiver<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
     last_torque: Arc<Mutex<Result<bool, String>>>,
@@ -233,6 +252,10 @@ fn run(
         let mut last_read_tick = std::time::Instant::now();
 
         loop {
+            if *stop_signal.lock().unwrap() {
+                break;
+            }
+
             tokio::select! {
                 maybe_command = rx.recv() => {
                     if let Some(command) = maybe_command {
