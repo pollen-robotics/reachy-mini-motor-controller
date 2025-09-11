@@ -58,6 +58,8 @@ impl FullBodyPosition {
 }
 
 pub struct ReachyMiniControlLoop {
+    loop_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
+    stop_signal: Arc<Mutex<bool>>,
     tx: Sender<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
     last_torque: Arc<Mutex<Result<bool, String>>>,
@@ -119,6 +121,9 @@ impl ReachyMiniControlLoop {
         stats_pub_period: Option<Duration>,
         read_allowed_retries: u64,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let stop_signal = Arc::new(Mutex::new(false));
+        let stop_signal_clone = stop_signal.clone();
+
         let (tx, rx) = mpsc::channel(100);
 
         let last_stats = stats_pub_period.map(|period| {
@@ -139,7 +144,6 @@ impl ReachyMiniControlLoop {
         // If the init fails, it probably means we have an hardware issue
         // so it's better to fail.
         let last_position = read_pos_with_retries(&mut c, read_allowed_retries)?;
-        // .map_err(|e| format!("Failed to read initial positions: {}", e))?;
         let last_torque = read_torque_with_retries(&mut c, read_allowed_retries)?;
         let last_control_mode = read_control_mode_with_retries(&mut c, read_allowed_retries)?;
 
@@ -151,9 +155,10 @@ impl ReachyMiniControlLoop {
         let last_control_mode = Arc::new(Mutex::new(Ok(last_control_mode)));
         let last_control_mode_clone = last_control_mode.clone();
 
-        std::thread::spawn(move || {
+        let loop_handle = std::thread::spawn(move || {
             run(
                 c,
+                stop_signal_clone,
                 rx,
                 last_position_clone,
                 last_torque_clone,
@@ -165,12 +170,23 @@ impl ReachyMiniControlLoop {
         });
 
         Ok(ReachyMiniControlLoop {
+            loop_handle: Arc::new(Mutex::new(Some(loop_handle))),
+            stop_signal,
             tx,
             last_position,
             last_torque,
             last_control_mode,
             last_stats,
         })
+    }
+
+    pub fn close(&self) {
+        if let Ok(mut stop) = self.stop_signal.lock() {
+            *stop = true;
+        }
+        if let Some(handle) = self.loop_handle.lock().unwrap().take() {
+            handle.join().unwrap();
+        }
     }
 
     pub fn push_command(
@@ -212,8 +228,15 @@ impl ReachyMiniControlLoop {
     }
 }
 
+impl Drop for ReachyMiniControlLoop {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
 fn run(
     mut c: ReachyMiniMotorController,
+    stop_signal: Arc<Mutex<bool>>,
     mut rx: mpsc::Receiver<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
     last_torque: Arc<Mutex<Result<bool, String>>>,
@@ -234,6 +257,10 @@ fn run(
         let mut last_read_tick = std::time::Instant::now();
 
         loop {
+            if *stop_signal.lock().unwrap() {
+                break;
+            }
+
             tokio::select! {
                 maybe_command = rx.recv() => {
                     if let Some(command) = maybe_command {
