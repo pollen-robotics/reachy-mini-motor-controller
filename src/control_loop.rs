@@ -60,6 +60,8 @@ impl FullBodyPosition {
 pub struct ReachyMiniControlLoop {
     tx: Sender<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
+    last_torque: Arc<Mutex<Result<bool, String>>>,
+    last_control_mode: Arc<Mutex<Result<u8, String>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
 }
 
@@ -138,15 +140,24 @@ impl ReachyMiniControlLoop {
         // so it's better to fail.
         let last_position = read_pos_with_retries(&mut c, read_allowed_retries)?;
         // .map_err(|e| format!("Failed to read initial positions: {}", e))?;
+        let last_torque = read_torque_with_retries(&mut c, read_allowed_retries)?;
+        let last_control_mode = read_control_mode_with_retries(&mut c, read_allowed_retries)?;
 
         let last_position = Arc::new(Mutex::new(Ok(last_position)));
         let last_position_clone = last_position.clone();
+
+        let last_torque = Arc::new(Mutex::new(Ok(last_torque)));
+        let last_torque_clone = last_torque.clone();
+        let last_control_mode = Arc::new(Mutex::new(Ok(last_control_mode)));
+        let last_control_mode_clone = last_control_mode.clone();
 
         std::thread::spawn(move || {
             run(
                 c,
                 rx,
                 last_position_clone,
+                last_torque_clone,
+                last_control_mode_clone,
                 last_stats_clone,
                 read_position_loop_period,
                 read_allowed_retries,
@@ -156,6 +167,8 @@ impl ReachyMiniControlLoop {
         Ok(ReachyMiniControlLoop {
             tx,
             last_position,
+            last_torque,
+            last_control_mode,
             last_stats,
         })
     }
@@ -170,6 +183,20 @@ impl ReachyMiniControlLoop {
     pub fn get_last_position(&self) -> Result<FullBodyPosition, pyo3::PyErr> {
         match &*self.last_position.lock().unwrap() {
             Ok(pos) => Ok(*pos),
+            Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
+        }
+    }
+
+    pub fn is_torque_enabled(&self) -> Result<bool, pyo3::PyErr> {
+        match &*self.last_torque.lock().unwrap() {
+            Ok(enabled) => Ok(*enabled),
+            Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
+        }
+    }
+
+    pub fn get_control_mode(&self) -> Result<u8, pyo3::PyErr> {
+        match &*self.last_control_mode.lock().unwrap() {
+            Ok(mode) => Ok(*mode),
             Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
         }
     }
@@ -189,6 +216,8 @@ fn run(
     mut c: ReachyMiniMotorController,
     mut rx: mpsc::Receiver<MotorCommand>,
     last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
+    last_torque: Arc<Mutex<Result<bool, String>>>,
+    last_control_mode: Arc<Mutex<Result<u8, String>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
     read_position_loop_period: Duration,
     read_allowed_retries: u64,
@@ -209,7 +238,7 @@ fn run(
                 maybe_command = rx.recv() => {
                     if let Some(command) = maybe_command {
                         let write_tick = std::time::Instant::now();
-                        handle_commands(&mut c, command).unwrap();
+                        handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command).unwrap();
                         if last_stats.is_some() {
                             let elapsed = write_tick.elapsed().as_secs_f64();
                             write_dt.push(elapsed);
@@ -274,6 +303,8 @@ fn run(
 
 fn handle_commands(
     controller: &mut ReachyMiniMotorController,
+    last_torque: Arc<Mutex<Result<bool, String>>>,
+    last_control_mode: Arc<Mutex<Result<u8, String>>>,
     command: MotorCommand,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use MotorCommand::*;
@@ -295,13 +326,35 @@ fn handle_commands(
         }
         SetBodyRotation { position } => controller.set_body_rotation(position),
         SetAntennasPositions { positions } => controller.set_antennas_positions(positions),
-        EnableTorque() => controller.enable_torque(),
-        DisableTorque() => controller.disable_torque(),
+        EnableTorque() => {
+            let res = controller.enable_torque();
+            if res.is_ok() {
+                if let Ok(mut torque) = last_torque.lock() {
+                    *torque = Ok(true);
+                }
+            }
+            res
+        }
+        DisableTorque() => {
+            let res = controller.disable_torque();
+            if res.is_ok() {
+                if let Ok(mut torque) = last_torque.lock() {
+                    *torque = Ok(false);
+                }
+            }
+            res
+        }
         SetStewartPlatformGoalCurrent { current } => {
             controller.set_stewart_platform_goal_current(current)
         }
         SetStewartPlatformOperatingMode { mode } => {
-            controller.set_stewart_platform_operating_mode(mode)
+            let res = controller.set_stewart_platform_operating_mode(mode);
+            if res.is_ok() {
+                if let Ok(mut control_mode) = last_control_mode.lock() {
+                    *control_mode = Ok(mode);
+                }
+            }
+            res
         }
         SetAntennasOperatingMode { mode } => controller.set_antennas_operating_mode(mode),
         SetBodyRotationOperatingMode { mode } => controller.set_body_rotation_operating_mode(mode),
@@ -311,7 +364,7 @@ fn handle_commands(
     }
 }
 
-fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, String> {
+pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, String> {
     match c.read_all_positions() {
         Ok(positions) => {
             if positions.len() == 9 {
@@ -358,6 +411,56 @@ fn read_pos_with_retries(
     }
     Err(format!(
         "Failed to read positions after {} retries",
+        retries
+    ))
+}
+
+fn read_torque_with_retries(
+    c: &mut ReachyMiniMotorController,
+    retries: u64,
+) -> Result<bool, String> {
+    for i in 0..retries {
+        match c.is_torque_enabled() {
+            Ok(enabled) => {
+                return Ok(enabled);
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to read torque status: {}. Retrying... {}/{}",
+                    e,
+                    i + 1,
+                    retries
+                );
+            }
+        }
+    }
+    Err(format!(
+        "Failed to read torque status after {} retries",
+        retries
+    ))
+}
+
+fn read_control_mode_with_retries(
+    c: &mut ReachyMiniMotorController,
+    retries: u64,
+) -> Result<u8, String> {
+    for i in 0..retries {
+        match c.read_stewart_platform_operating_mode() {
+            Ok(mode) => {
+                return Ok(mode[0]);
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to read operating mode: {}. Retrying... {}/{}",
+                    e,
+                    i + 1,
+                    retries
+                );
+            }
+        }
+    }
+    Err(format!(
+        "Failed to read control mode after {} retries",
         retries
     ))
 }

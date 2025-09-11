@@ -85,6 +85,21 @@ impl ReachyMiniMotorController {
         Ok(())
     }
 
+    pub fn is_torque_enabled(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
+        let sts_torque = sts3215::sync_read_torque_enable(
+            &self.dph_v1,
+            self.serial_port.as_mut(),
+            &[11, 21, 22],
+        )?;
+        let xl_torque = xl330::sync_read_torque_enable(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[1, 2, 3, 4, 5, 6],
+        )?;
+
+        Ok(sts_torque.iter().all(|&x| x) && xl_torque.iter().all(|&x| x))
+    }
+
     pub fn enable_torque(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.set_torque(true)
     }
