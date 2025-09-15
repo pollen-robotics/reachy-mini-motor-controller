@@ -308,15 +308,14 @@ fn run(
                         read_dt.push(elapsed);
                     }
 
-                    if let Some((period, stats)) = &last_stats {
-                        if stats_t0.elapsed() > *period {
+                    if let Some((period, stats)) = &last_stats 
+                        && stats_t0.elapsed() > *period {
                             stats.lock().unwrap().read_dt.extend(read_dt.iter().cloned());
                             stats.lock().unwrap().write_dt.extend(write_dt.iter().cloned());
 
                             read_dt.clear();
                             write_dt.clear();
                             stats_t0 = std::time::Instant::now();
-                        }
                     }
                 }
             }
@@ -365,19 +364,19 @@ fn handle_commands(
         SetAntennasPositions { positions } => controller.set_antennas_positions(positions),
         EnableTorque() => {
             let res = controller.enable_torque();
-            if res.is_ok() {
-                if let Ok(mut torque) = last_torque.lock() {
-                    *torque = Ok(true);
-                }
+            if res.is_ok()
+                && let Ok(mut torque) = last_torque.lock()
+            {
+                *torque = Ok(true);
             }
             res
         }
         DisableTorque() => {
             let res = controller.disable_torque();
-            if res.is_ok() {
-                if let Ok(mut torque) = last_torque.lock() {
-                    *torque = Ok(false);
-                }
+            if res.is_ok()
+                && let Ok(mut torque) = last_torque.lock()
+            {
+                *torque = Ok(false);
             }
             res
         }
@@ -386,10 +385,10 @@ fn handle_commands(
         }
         SetStewartPlatformOperatingMode { mode } => {
             let res = controller.set_stewart_platform_operating_mode(mode);
-            if res.is_ok() {
-                if let Ok(mut control_mode) = last_control_mode.lock() {
-                    *control_mode = Ok(mode);
-                }
+            if res.is_ok()
+                && let Ok(mut control_mode) = last_control_mode.lock()
+            {
+                *control_mode = Ok(mode);
             }
             res
         }

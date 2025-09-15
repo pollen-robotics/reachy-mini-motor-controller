@@ -59,11 +59,11 @@ fn main() {
             })
             .unwrap();
 
-        if last_stats_tick.elapsed() > Duration::from_secs(1) {
-            if let Ok(Some(stats)) = loop_controller.get_stats() {
-                println!("{:?}", stats);
-                last_stats_tick = std::time::Instant::now();
-            }
+        if last_stats_tick.elapsed() > Duration::from_secs(1)
+            && let Ok(Some(stats)) = loop_controller.get_stats()
+        {
+            println!("{:?}", stats);
+            last_stats_tick = std::time::Instant::now();
         }
 
         sleep(write_period);
