@@ -24,6 +24,23 @@ impl ReachyMiniMotorController {
         })
     }
 
+    pub fn check_missing_ids(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut missing_ids = Vec::new();
+
+        for id in [11, 21, 22] {
+            if let Err(_) = sts3215::read_id(&self.dph_v1, self.serial_port.as_mut(), id) {
+                missing_ids.push(id);
+            }
+        }
+        for id in [1, 2, 3, 4, 5, 6] {
+            if let Err(_) = xl330::read_id(&self.dph_v2, self.serial_port.as_mut(), id) {
+                missing_ids.push(id);
+            }
+        }
+
+        Ok(missing_ids)
+    }
+
     pub fn read_all_positions(&mut self) -> Result<[f64; 9], Box<dyn std::error::Error>> {
         let mut pos = Vec::new();
 

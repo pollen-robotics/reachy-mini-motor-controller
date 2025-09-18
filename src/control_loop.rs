@@ -139,6 +139,20 @@ impl ReachyMiniControlLoop {
         let last_stats_clone = last_stats.clone();
 
         let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
+        let missing_ids = c.check_missing_ids()?;
+        if !missing_ids.is_empty() {
+            if missing_ids.len() == 9 {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "No motor found. Check if the robot is powered on.".to_string(),
+                )));
+            }
+
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Some motor IDs are missing: {:?}", missing_ids),
+            )));
+        }
 
         // Init last position by trying to read current positions
         // If the init fails, it probably means we have an hardware issue
