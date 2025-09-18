@@ -1,11 +1,11 @@
-use log::{error, info, warn};
+use log::{info, warn};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     sync::mpsc::{self, Sender},
@@ -270,8 +270,6 @@ fn run(
 
         let mut last_read_tick = std::time::Instant::now();
 
-        let mut last_error_log = Instant::now() - Duration::from_secs(1);
-
         loop {
             tokio::select! {
                 maybe_command = rx.recv() => {
@@ -310,10 +308,6 @@ fn run(
                         Err(e) => {
                             error_count += 1;
                             if error_count >= read_allowed_retries {
-                                if last_error_log.elapsed() > Duration::from_secs(1) {
-                                    warn!("Failed to read positions after {} retries: {}", read_allowed_retries, e);
-                                    last_error_log = Instant::now();
-                                }
                                 if let Ok(mut pos) = last_position.lock() {
                                     *pos = Err(e.to_string());
                                 }
