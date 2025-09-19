@@ -36,8 +36,7 @@ fn main() {
 
         let tic = std::time::Instant::now();
         for _ in 0..N {
-            let _ =
-                sts3215::sync_read_present_position(&dph_v1, serial_port.as_mut(), &[11]);
+            let _ = sts3215::sync_read_present_position(&dph_v1, serial_port.as_mut(), &[11]);
             let _ = xl330::sync_read_present_position(
                 &dph_v2,
                 serial_port.as_mut(),

@@ -50,11 +50,11 @@ impl ReachyMiniMotorController {
     pub fn read_all_voltages(&mut self) -> Result<[u16; 9], Box<dyn std::error::Error>> {
         let mut volt = Vec::new();
 
-        volt.extend(sts3215::sync_read_present_voltage(
-            &self.dph_v1,
-            self.serial_port.as_mut(),
-            &[11],
-        )?.iter().map(|&x| x as u16));
+        volt.extend(
+            sts3215::sync_read_present_voltage(&self.dph_v1, self.serial_port.as_mut(), &[11])?
+                .iter()
+                .map(|&x| x as u16),
+        );
         volt.extend(xl330::sync_read_present_input_voltage(
             &self.dph_v2,
             self.serial_port.as_mut(),
@@ -157,11 +157,8 @@ impl ReachyMiniMotorController {
     }
 
     pub fn is_torque_enabled(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
-        let sts_torque = sts3215::sync_read_torque_enable(
-            &self.dph_v1,
-            self.serial_port.as_mut(),
-            &[11],
-        )?;
+        let sts_torque =
+            sts3215::sync_read_torque_enable(&self.dph_v1, self.serial_port.as_mut(), &[11])?;
         let xl_torque = xl330::sync_read_torque_enable(
             &self.dph_v2,
             self.serial_port.as_mut(),

@@ -354,7 +354,7 @@ fn run(
                         read_dt.push(elapsed);
                     }
 
-                    if let Some((period, stats)) = &last_stats 
+                    if let Some((period, stats)) = &last_stats
                         && stats_t0.elapsed() > *period {
                             stats.lock().unwrap().read_dt.extend(read_dt.iter().cloned());
                             stats.lock().unwrap().write_dt.extend(write_dt.iter().cloned());
@@ -519,10 +519,7 @@ fn read_volt_with_retries(
             }
         }
     }
-    Err(format!(
-        "Failed to read voltages after {} retries",
-        retries
-    ))
+    Err(format!("Failed to read voltages after {} retries", retries))
 }
 
 fn read_torque_with_retries(
