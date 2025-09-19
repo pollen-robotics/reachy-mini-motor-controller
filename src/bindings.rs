@@ -70,6 +70,17 @@ impl ReachyMiniMotorController {
         Ok(())
     }
 
+    /// Read all motor voltages as a 9-element array.
+    fn read_all_voltages(&self) -> PyResult<[u16; 9]> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .read_all_voltages()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     /// Read all motor positions as a 9-element array.
     fn read_all_positions(&self) -> PyResult<[f64; 9]> {
         let mut inner = self.inner.lock().map_err(|_| {
