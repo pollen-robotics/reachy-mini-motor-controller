@@ -67,12 +67,12 @@ impl ReachyMiniMotorController {
     pub fn check_missing_ids(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut missing_ids = Vec::new();
 
-        for id in [11, 21, 22] {
+        for id in [11] {
             if sts3215::read_id(&self.dph_v1, self.serial_port.as_mut(), id).is_err() {
                 missing_ids.push(id);
             }
         }
-        for id in [1, 2, 3, 4, 5, 6] {
+        for id in [21, 22, 1, 2, 3, 4, 5, 6] {
             if xl330::read_id(&self.dph_v2, self.serial_port.as_mut(), id).is_err() {
                 missing_ids.push(id);
             }
