@@ -519,10 +519,7 @@ fn read_volt_with_retries(
             }
         }
     }
-    Err(format!(
-        "Failed to read voltages after {} retries",
-        retries
-    ))
+    Err(format!("Failed to read voltages after {} retries", retries))
 }
 
 fn read_torque_with_retries(
