@@ -459,6 +459,19 @@ pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, C
     }
 }
 
+pub fn read_volt(c: &mut ReachyMiniMotorController) -> Result<[u16; 9], String> {
+    match c.read_all_voltages() {
+        Ok(voltages) => {
+            if voltages.len() == 9 {
+                Ok(voltages)
+            } else {
+                Err(format!("Unexpected voltages length: {}", voltages.len()))
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn read_pos_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
@@ -477,6 +490,29 @@ fn read_pos_with_retries(
         }
     }
     Err(CommunicationError::MotorCommunicationError())
+}
+
+fn read_volt_with_retries(
+    c: &mut ReachyMiniMotorController,
+    retries: u64,
+) -> Result<[u16; 9], String> {
+    for i in 0..retries {
+        match read_volt(c) {
+            Ok(voltages) => return Ok(voltages),
+            Err(e) => {
+                warn!(
+                    "Failed to read voltages: {}. Retrying... {}/{}",
+                    e,
+                    i + 1,
+                    retries
+                );
+            }
+        }
+    }
+    Err(format!(
+        "Failed to read voltages after {} retries",
+        retries
+    ))
 }
 
 fn read_torque_with_retries(

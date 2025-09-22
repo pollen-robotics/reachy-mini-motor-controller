@@ -51,6 +51,21 @@ impl ReachyMiniMotorController {
         Ok(missing_ids)
     }
 
+    /// Read the current input voltage of all servos.
+    /// Returns an array of 9 input voltages in the following order:
+    /// [body_rotation, stewart_1, stewart_2, stewart_3, stewart_4, stewart_5, stewart_6, antenna_right, antenna_left]
+    pub fn read_all_voltages(&mut self) -> Result<[u16; 9], Box<dyn std::error::Error>> {
+        let mut volt = Vec::new();
+        
+        volt.extend(xl330::sync_read_present_input_voltage(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &self.all_ids,
+        )?);
+
+        Ok(volt.try_into().unwrap())
+    }
+
     /// Read the current position of all servos.
     /// Returns an array of 9 positions in the following order:
     /// [body_rotation, stewart_1, stewart_2, stewart_3, stewart_4, stewart_5, stewart_6, antenna_right, antenna_left]
