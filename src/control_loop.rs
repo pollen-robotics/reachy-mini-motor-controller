@@ -182,8 +182,9 @@ impl ReachyMiniControlLoop {
         }
 
         // Wait until voltage is stable at 5V
+        println!("Waiting for voltage to be stable at 5V...");
         let mut current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
-        while current_voltage.iter().any(|&v| v < 50) {
+        while current_voltage.iter().any(|&v| v < 45) {
             std::thread::sleep(Duration::from_millis(100));
             current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
         }
