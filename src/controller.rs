@@ -20,6 +20,17 @@ impl ReachyMiniMotorController {
             serial_port,
         })
     }
+    pub fn read_all_voltages(&mut self) -> Result<[u16; 9], Box<dyn std::error::Error>> {
+        let mut volt = Vec::new();
+        
+        volt.extend(xl330::sync_read_present_input_voltage(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &[11, 21, 22, 1, 2, 3, 4, 5, 6],
+        )?);
+
+        Ok(volt.try_into().unwrap())
+    }
 
     pub fn read_all_positions(&mut self) -> Result<[f64; 9], Box<dyn std::error::Error>> {
         let mut pos = Vec::new();
