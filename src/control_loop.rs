@@ -1,4 +1,4 @@
-use log::{error, warn};
+use log::{info, warn};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
@@ -139,6 +139,20 @@ impl ReachyMiniControlLoop {
         let last_stats_clone = last_stats.clone();
 
         let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
+        let missing_ids = c.check_missing_ids()?;
+        if !missing_ids.is_empty() {
+            if missing_ids.len() == 9 {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "No motor found. Check if the robot is powered on.".to_string(),
+                )));
+            }
+
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Some motor IDs are missing: {:?}", missing_ids),
+            )));
+        }
 
         // Init last position by trying to read current positions
         // If the init fails, it probably means we have an hardware issue
@@ -257,10 +271,6 @@ fn run(
         let mut last_read_tick = std::time::Instant::now();
 
         loop {
-            if *stop_signal.lock().unwrap() {
-                break;
-            }
-
             tokio::select! {
                 maybe_command = rx.recv() => {
                     if let Some(command) = maybe_command {
@@ -297,10 +307,7 @@ fn run(
                         },
                         Err(e) => {
                             error_count += 1;
-                            if error_count < read_allowed_retries {
-                                warn!("Failed to read positions ({}). Retry {}/{}", e, error_count, read_allowed_retries);
-                            } else {
-                                error!("Failed to read positions after {} retries: {}", read_allowed_retries, e);
+                            if error_count >= read_allowed_retries {
                                 if let Ok(mut pos) = last_position.lock() {
                                     *pos = Err(e.to_string());
                                 }
@@ -312,17 +319,30 @@ fn run(
                         read_dt.push(elapsed);
                     }
 
-                    if let Some((period, stats)) = &last_stats {
-                        if stats_t0.elapsed() > *period {
+                    if let Some((period, stats)) = &last_stats 
+                        && stats_t0.elapsed() > *period {
                             stats.lock().unwrap().read_dt.extend(read_dt.iter().cloned());
                             stats.lock().unwrap().write_dt.extend(write_dt.iter().cloned());
 
                             read_dt.clear();
                             write_dt.clear();
                             stats_t0 = std::time::Instant::now();
-                        }
                     }
                 }
+            }
+
+            if *stop_signal.lock().unwrap() {
+                // Drain the command channel before exiting
+                loop {
+                    if rx.is_empty() {
+                        break;
+                    }
+                    if let Some(command) = rx.recv().await {
+                        info!("Draining command: {:?}\n", command);
+                        handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command).unwrap();
+                    }
+                }
+                break;
             }
         }
     })
@@ -355,19 +375,19 @@ fn handle_commands(
         SetAntennasPositions { positions } => controller.set_antennas_positions(positions),
         EnableTorque() => {
             let res = controller.enable_torque();
-            if res.is_ok() {
-                if let Ok(mut torque) = last_torque.lock() {
-                    *torque = Ok(true);
-                }
+            if res.is_ok()
+                && let Ok(mut torque) = last_torque.lock()
+            {
+                *torque = Ok(true);
             }
             res
         }
         DisableTorque() => {
             let res = controller.disable_torque();
-            if res.is_ok() {
-                if let Ok(mut torque) = last_torque.lock() {
-                    *torque = Ok(false);
-                }
+            if res.is_ok()
+                && let Ok(mut torque) = last_torque.lock()
+            {
+                *torque = Ok(false);
             }
             res
         }
@@ -376,10 +396,10 @@ fn handle_commands(
         }
         SetStewartPlatformOperatingMode { mode } => {
             let res = controller.set_stewart_platform_operating_mode(mode);
-            if res.is_ok() {
-                if let Ok(mut control_mode) = last_control_mode.lock() {
-                    *control_mode = Ok(mode);
-                }
+            if res.is_ok()
+                && let Ok(mut control_mode) = last_control_mode.lock()
+            {
+                *control_mode = Ok(mode);
             }
             res
         }
