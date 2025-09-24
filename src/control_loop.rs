@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::{warn};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
@@ -338,7 +338,6 @@ fn run(
                         break;
                     }
                     if let Some(command) = rx.recv().await {
-                        info!("Draining command: {:?}\n", command);
                         handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command).unwrap();
                     }
                 }
