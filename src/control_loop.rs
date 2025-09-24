@@ -61,9 +61,9 @@ pub struct ReachyMiniControlLoop {
     loop_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
     stop_signal: Arc<Mutex<bool>>,
     tx: Sender<MotorCommand>,
-    last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
-    last_torque: Arc<Mutex<Result<bool, String>>>,
-    last_control_mode: Arc<Mutex<Result<u8, String>>>,
+    last_position: Arc<Mutex<Result<FullBodyPosition, CommunicationError>>>,
+    last_torque: Arc<Mutex<Result<bool, CommunicationError>>>,
+    last_control_mode: Arc<Mutex<Result<u8, CommunicationError>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
 }
 
@@ -114,13 +114,41 @@ impl std::fmt::Debug for ControlLoopStats {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum CommunicationError {
+    MissingIds(Vec<u8>),
+    MotorCommunicationError(),
+    NoPowerError(),
+    PortNotFound(String),
+}
+
+impl std::error::Error for CommunicationError {}
+impl std::fmt::Display for CommunicationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommunicationError::MissingIds(ids) => {
+                write!(f, "Missing motor IDs: {:?}!", ids)
+            }
+            CommunicationError::MotorCommunicationError() => {
+                write!(f, "Motor communication error!")
+            }
+            CommunicationError::NoPowerError() => {
+                write!(f, "No power detected on the motors!")
+            }
+            CommunicationError::PortNotFound(port) => {
+                write!(f, "Serial port not found: {}!", port)
+            }
+        }
+    }
+}
+
 impl ReachyMiniControlLoop {
     pub fn new(
         serialport: String,
         read_position_loop_period: Duration,
         stats_pub_period: Option<Duration>,
         read_allowed_retries: u64,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, CommunicationError> {
         let stop_signal = Arc::new(Mutex::new(false));
         let stop_signal_clone = stop_signal.clone();
 
@@ -139,19 +167,18 @@ impl ReachyMiniControlLoop {
         let last_stats_clone = last_stats.clone();
 
         let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
-        let missing_ids = c.check_missing_ids()?;
-        if !missing_ids.is_empty() {
-            if missing_ids.len() == 9 {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "No motor found. Check if the robot is powered on.".to_string(),
-                )));
-            }
 
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Some motor IDs are missing: {:?}", missing_ids),
-            )));
+        match c.check_missing_ids() {
+            Ok(missing_ids) if missing_ids.len() == 9 => {
+                return Err(CommunicationError::NoPowerError())
+            }
+            Ok(missing_ids) if !missing_ids.is_empty() => {
+                return Err(CommunicationError::MissingIds(missing_ids))
+            }
+            Ok(_) => {},
+            Err(_) => {
+                return Err(CommunicationError::MotorCommunicationError())
+            }
         }
 
         // Init last position by trying to read current positions
@@ -210,28 +237,28 @@ impl ReachyMiniControlLoop {
         self.tx.blocking_send(command)
     }
 
-    pub fn get_last_position(&self) -> Result<FullBodyPosition, pyo3::PyErr> {
+    pub fn get_last_position(&self) -> Result<FullBodyPosition, CommunicationError> {
         match &*self.last_position.lock().unwrap() {
             Ok(pos) => Ok(*pos),
-            Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
+            Err(e) => Err(e.clone()),
         }
     }
 
-    pub fn is_torque_enabled(&self) -> Result<bool, pyo3::PyErr> {
+    pub fn is_torque_enabled(&self) -> Result<bool, CommunicationError> {
         match &*self.last_torque.lock().unwrap() {
             Ok(enabled) => Ok(*enabled),
-            Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
+            Err(e) => Err(e.clone()),
         }
     }
 
-    pub fn get_control_mode(&self) -> Result<u8, pyo3::PyErr> {
+    pub fn get_control_mode(&self) -> Result<u8, CommunicationError> {
         match &*self.last_control_mode.lock().unwrap() {
             Ok(mode) => Ok(*mode),
-            Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e.clone())),
+            Err(e) => Err(e.clone()),
         }
     }
 
-    pub fn get_stats(&self) -> Result<Option<ControlLoopStats>, pyo3::PyErr> {
+    pub fn get_stats(&self) -> Result<Option<ControlLoopStats>, CommunicationError> {
         match self.last_stats {
             Some((_, ref stats)) => {
                 let stats = stats.lock().unwrap();
@@ -252,9 +279,9 @@ fn run(
     mut c: ReachyMiniMotorController,
     stop_signal: Arc<Mutex<bool>>,
     mut rx: mpsc::Receiver<MotorCommand>,
-    last_position: Arc<Mutex<Result<FullBodyPosition, String>>>,
-    last_torque: Arc<Mutex<Result<bool, String>>>,
-    last_control_mode: Arc<Mutex<Result<u8, String>>>,
+    last_position: Arc<Mutex<Result<FullBodyPosition, CommunicationError>>>,
+    last_torque: Arc<Mutex<Result<bool, CommunicationError>>>,
+    last_control_mode: Arc<Mutex<Result<u8, CommunicationError>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
     read_position_loop_period: Duration,
     read_allowed_retries: u64,
@@ -307,10 +334,8 @@ fn run(
                         },
                         Err(e) => {
                             error_count += 1;
-                            if error_count >= read_allowed_retries {
-                                if let Ok(mut pos) = last_position.lock() {
-                                    *pos = Err(e.to_string());
-                                }
+                            if error_count >= read_allowed_retries && let Ok(mut pos) = last_position.lock() {
+                                *pos = Err(e);
                             }
                         },
                     }
@@ -349,8 +374,8 @@ fn run(
 
 fn handle_commands(
     controller: &mut ReachyMiniMotorController,
-    last_torque: Arc<Mutex<Result<bool, String>>>,
-    last_control_mode: Arc<Mutex<Result<u8, String>>>,
+    last_torque: Arc<Mutex<Result<bool, CommunicationError>>>,
+    last_control_mode: Arc<Mutex<Result<u8, CommunicationError>>>,
     command: MotorCommand,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use MotorCommand::*;
@@ -410,10 +435,9 @@ fn handle_commands(
     }
 }
 
-pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, String> {
+pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, CommunicationError> {
     match c.read_all_positions() {
         Ok(positions) => {
-            if positions.len() == 9 {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_else(|_| std::time::Duration::from_secs(0));
@@ -430,24 +454,21 @@ pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, S
                     antennas: [positions[1], positions[2]],
                     timestamp: now.as_secs_f64(),
                 })
-            } else {
-                Err(format!("Unexpected positions length: {}", positions.len()))
-            }
         }
-        Err(e) => Err(e.to_string()),
+        Err(_) => Err(CommunicationError::MotorCommunicationError()),
     }
 }
 
 fn read_pos_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<FullBodyPosition, String> {
+) -> Result<FullBodyPosition, CommunicationError> {
     for i in 0..retries {
         match read_pos(c) {
             Ok(pos) => return Ok(pos),
             Err(e) => {
                 warn!(
-                    "Failed to read positions: {}. Retrying... {}/{}",
+                    "Failed to read positions: {:?}. Retrying... {}/{}",
                     e,
                     i + 1,
                     retries
@@ -455,16 +476,13 @@ fn read_pos_with_retries(
             }
         }
     }
-    Err(format!(
-        "Failed to read positions after {} retries",
-        retries
-    ))
+    Err(CommunicationError::MotorCommunicationError())
 }
 
 fn read_torque_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<bool, String> {
+) -> Result<bool, CommunicationError> {
     for i in 0..retries {
         match c.is_torque_enabled() {
             Ok(enabled) => {
@@ -480,16 +498,13 @@ fn read_torque_with_retries(
             }
         }
     }
-    Err(format!(
-        "Failed to read torque status after {} retries",
-        retries
-    ))
+    Err(CommunicationError::MotorCommunicationError())
 }
 
 fn read_control_mode_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<u8, String> {
+) -> Result<u8, CommunicationError> {
     for i in 0..retries {
         match c.read_stewart_platform_operating_mode() {
             Ok(mode) => {
@@ -505,8 +520,5 @@ fn read_control_mode_with_retries(
             }
         }
     }
-    Err(format!(
-        "Failed to read control mode after {} retries",
-        retries
-    ))
+    Err(CommunicationError::MotorCommunicationError())
 }

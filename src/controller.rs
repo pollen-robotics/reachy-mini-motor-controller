@@ -25,7 +25,7 @@ impl ReachyMiniMotorController {
         let mut missing_ids = Vec::new();
 
         for id in [1, 2, 3, 4, 5, 6, 11, 21, 22] {
-            if let Err(_) = xl330::read_id(&self.dph_v2, self.serial_port.as_mut(), id) {
+            if xl330::read_id(&self.dph_v2, self.serial_port.as_mut(), id).is_err() {
                 missing_ids.push(id);
             }
         }
