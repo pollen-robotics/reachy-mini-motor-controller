@@ -1,4 +1,4 @@
-use log::{warn};
+use log::warn;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
@@ -170,15 +170,13 @@ impl ReachyMiniControlLoop {
 
         match c.check_missing_ids() {
             Ok(missing_ids) if missing_ids.len() == 9 => {
-                return Err(CommunicationError::NoPowerError())
+                return Err(CommunicationError::NoPowerError());
             }
             Ok(missing_ids) if !missing_ids.is_empty() => {
-                return Err(CommunicationError::MissingIds(missing_ids))
+                return Err(CommunicationError::MissingIds(missing_ids));
             }
-            Ok(_) => {},
-            Err(_) => {
-                return Err(CommunicationError::MotorCommunicationError())
-            }
+            Ok(_) => {}
+            Err(_) => return Err(CommunicationError::MotorCommunicationError()),
         }
 
         // Wait until voltage is stable at 5V
@@ -355,7 +353,7 @@ fn run(
                         read_dt.push(elapsed);
                     }
 
-                    if let Some((period, stats)) = &last_stats 
+                    if let Some((period, stats)) = &last_stats
                         && stats_t0.elapsed() > *period {
                             stats.lock().unwrap().read_dt.extend(read_dt.iter().cloned());
                             stats.lock().unwrap().write_dt.extend(write_dt.iter().cloned());
@@ -449,22 +447,22 @@ fn handle_commands(
 pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, CommunicationError> {
     match c.read_all_positions() {
         Ok(positions) => {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-                Ok(FullBodyPosition {
-                    body_yaw: positions[0],
-                    stewart: [
-                        positions[1],
-                        positions[2],
-                        positions[3],
-                        positions[4],
-                        positions[5],
-                        positions[6],
-                    ],
-                    antennas: [positions[7], positions[8]],
-                    timestamp: now.as_secs_f64(),
-                })
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0));
+            Ok(FullBodyPosition {
+                body_yaw: positions[0],
+                stewart: [
+                    positions[1],
+                    positions[2],
+                    positions[3],
+                    positions[4],
+                    positions[5],
+                    positions[6],
+                ],
+                antennas: [positions[7], positions[8]],
+                timestamp: now.as_secs_f64(),
+            })
         }
         Err(_) => Err(CommunicationError::MotorCommunicationError()),
     }

@@ -49,7 +49,7 @@ impl ReachyMiniMotorController {
             )?;
         }
         println!("Error status: {:?}", error_status);
-        
+
         let mut last_reboot_id = self.all_ids[0];
         for (pos, id) in self.all_ids.iter().enumerate() {
             if !on_error_status_only || (on_error_status_only && error_status[pos] == 1) {
@@ -57,7 +57,10 @@ impl ReachyMiniMotorController {
                 last_reboot_id = *id;
             }
         }
-        while !self.dph_v2.ping(self.serial_port.as_mut(), last_reboot_id)? {
+        while !self
+            .dph_v2
+            .ping(self.serial_port.as_mut(), last_reboot_id)?
+        {
             std::thread::sleep(Duration::from_millis(100));
         }
         Ok(())
@@ -80,7 +83,7 @@ impl ReachyMiniMotorController {
     /// [body_rotation, stewart_1, stewart_2, stewart_3, stewart_4, stewart_5, stewart_6, antenna_right, antenna_left]
     pub fn read_all_voltages(&mut self) -> Result<[u16; 9], Box<dyn std::error::Error>> {
         let mut volt = Vec::new();
-        
+
         volt.extend(xl330::sync_read_present_input_voltage(
             &self.dph_v2,
             self.serial_port.as_mut(),
