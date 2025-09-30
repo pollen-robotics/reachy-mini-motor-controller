@@ -34,7 +34,7 @@ impl ReachyMiniMotorController {
                 &[21, 22, 1, 2, 3, 4, 5, 6],
             )?;
         }
-        println!("Error status: {:?}", error_status);
+        //println!("Error status: {:?}", error_status);
 
         for (idx, val) in [21, 22, 1, 2, 3, 4, 5, 6].iter().enumerate() {
             if !on_error_status_only || (on_error_status_only && error_status[idx] == 1) {
