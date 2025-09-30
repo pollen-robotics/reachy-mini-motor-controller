@@ -48,7 +48,7 @@ impl ReachyMiniMotorController {
                 &self.all_ids,
             )?;
         }
-        println!("Error status: {:?}", error_status);
+        //println!("Error status: {:?}", error_status);
 
         let mut last_reboot_id = self.all_ids[0];
         for (pos, id) in self.all_ids.iter().enumerate() {
