@@ -383,14 +383,14 @@ fn handle_commands(
     match command {
         SetAllGoalPositions { positions } => controller.set_all_goal_positions([
             positions.body_yaw,
-            positions.antennas[0],
-            positions.antennas[1],
             positions.stewart[0],
             positions.stewart[1],
             positions.stewart[2],
             positions.stewart[3],
             positions.stewart[4],
             positions.stewart[5],
+            positions.antennas[0],
+            positions.antennas[1],
         ]),
         SetStewartPlatformPosition { position } => {
             controller.set_stewart_platform_position(position)
@@ -444,14 +444,14 @@ pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, C
                 Ok(FullBodyPosition {
                     body_yaw: positions[0],
                     stewart: [
+                        positions[1],
+                        positions[2],
                         positions[3],
                         positions[4],
                         positions[5],
                         positions[6],
-                        positions[7],
-                        positions[8],
                     ],
-                    antennas: [positions[1], positions[2]],
+                    antennas: [positions[7], positions[8]],
                     timestamp: now.as_secs_f64(),
                 })
         }
