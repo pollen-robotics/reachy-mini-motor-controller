@@ -1,4 +1,4 @@
-use log::warn;
+use log::{info, warn};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
@@ -119,6 +119,7 @@ pub enum CommunicationError {
     MissingIds(Vec<u8>),
     MotorCommunicationError(),
     NoPowerError(),
+    VoltageRampUpTimeoutError(u16, Duration),
     PortNotFound(String),
 }
 
@@ -138,6 +139,13 @@ impl std::fmt::Display for CommunicationError {
             CommunicationError::PortNotFound(port) => {
                 write!(f, "Serial port not found: {}!", port)
             }
+            CommunicationError::VoltageRampUpTimeoutError(voltage, duration) => {
+                write!(
+                    f,
+                    "Voltage did not ramp up to 5V ({}V) within {:?}!",
+                    voltage, duration
+                )
+            }
         }
     }
 }
@@ -148,6 +156,7 @@ impl ReachyMiniControlLoop {
         read_position_loop_period: Duration,
         stats_pub_period: Option<Duration>,
         read_allowed_retries: u64,
+        voltage_rampup_timeout: Duration,
     ) -> Result<Self, CommunicationError> {
         let stop_signal = Arc::new(Mutex::new(false));
         let stop_signal_clone = stop_signal.clone();
@@ -180,12 +189,27 @@ impl ReachyMiniControlLoop {
         }
 
         // Wait until voltage is stable at 5V
-        println!("Waiting for voltage to be stable at 5V...");
+        info!("Waiting for voltage to be stable at 5V...");
         let mut current_voltage = read_volt_with_retries(&mut c, read_allowed_retries).unwrap();
-        while current_voltage.iter().any(|&v| v < 45) {
+        let start_time = SystemTime::now();
+        while current_voltage
+            .iter()
+            .any(|&v| v < 45 && start_time.elapsed().unwrap() < voltage_rampup_timeout)
+        {
             std::thread::sleep(Duration::from_millis(100));
-            current_voltage = read_volt_with_retries(&mut c, read_allowed_retries).unwrap();
+            current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
         }
+        if current_voltage.iter().any(|&v| v < 45) {
+            return Err(CommunicationError::VoltageRampUpTimeoutError(
+                current_voltage.iter().cloned().min().unwrap_or(0),
+                voltage_rampup_timeout,
+            ));
+        }
+        info!(
+            "Voltage is stable at ~5V: {:?} (took {:?})",
+            current_voltage,
+            start_time.elapsed().unwrap()
+        );
 
         // Reboot all motors on error status
         c.reboot(true).unwrap();
@@ -504,7 +528,7 @@ fn read_pos_with_retries(
 fn read_volt_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<[u16; 9], String> {
+) -> Result<[u16; 9], CommunicationError> {
     for i in 0..retries {
         match read_volt(c) {
             Ok(voltages) => return Ok(voltages),
@@ -518,7 +542,7 @@ fn read_volt_with_retries(
             }
         }
     }
-    Err(format!("Failed to read voltages after {} retries", retries))
+    Err(CommunicationError::MotorCommunicationError())
 }
 
 fn read_torque_with_retries(
