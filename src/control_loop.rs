@@ -117,7 +117,7 @@ impl std::fmt::Debug for ControlLoopStats {
 #[derive(Debug, Clone)]
 pub enum MotorError {
     MissingIds(Vec<u8>),
-    MotorMotorError(),
+    CommunicationError(),
     NoPowerError(),
     VoltageRampUpTimeoutError(u16, Duration),
     PortNotFound(String),
@@ -130,7 +130,7 @@ impl std::fmt::Display for MotorError {
             MotorError::MissingIds(ids) => {
                 write!(f, "Missing motor IDs: {:?}!", ids)
             }
-            MotorError::MotorMotorError() => {
+            MotorError::CommunicationError() => {
                 write!(f, "Motor communication error!")
             }
             MotorError::NoPowerError() => {
@@ -185,7 +185,7 @@ impl ReachyMiniControlLoop {
                 return Err(MotorError::MissingIds(missing_ids));
             }
             Ok(_) => {}
-            Err(_) => return Err(MotorError::MotorMotorError()),
+            Err(_) => return Err(MotorError::CommunicationError()),
         }
 
         // Wait until voltage is stable at 5V
@@ -488,7 +488,7 @@ pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, M
                 timestamp: now.as_secs_f64(),
             })
         }
-        Err(_) => Err(MotorError::MotorMotorError()),
+        Err(_) => Err(MotorError::CommunicationError()),
     }
 }
 
@@ -522,7 +522,7 @@ fn read_pos_with_retries(
             }
         }
     }
-    Err(MotorError::MotorMotorError())
+    Err(MotorError::CommunicationError())
 }
 
 fn read_volt_with_retries(
@@ -542,7 +542,7 @@ fn read_volt_with_retries(
             }
         }
     }
-    Err(MotorError::MotorMotorError())
+    Err(MotorError::CommunicationError())
 }
 
 fn read_torque_with_retries(
@@ -564,7 +564,7 @@ fn read_torque_with_retries(
             }
         }
     }
-    Err(MotorError::MotorMotorError())
+    Err(MotorError::CommunicationError())
 }
 
 fn read_control_mode_with_retries(
@@ -586,5 +586,5 @@ fn read_control_mode_with_retries(
             }
         }
     }
-    Err(MotorError::MotorMotorError())
+    Err(MotorError::CommunicationError())
 }
