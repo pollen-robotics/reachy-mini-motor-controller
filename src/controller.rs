@@ -303,4 +303,25 @@ impl ReachyMiniMotorController {
 
         Ok(())
     }
+
+    pub fn read_raw_bytes(
+        &mut self,
+        id: u8,
+        address: u8,
+        length: u8,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        self.dph_v2
+            .read(self.serial_port.as_mut(), id, address, length)
+    }
+
+    pub fn write_raw_bytes(
+        &mut self,
+        id: u8,
+        address: u8,
+        data: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.dph_v2
+            .write(self.serial_port.as_mut(), id, address, data)
+            .map_err(|e| e.into())
+    }
 }
