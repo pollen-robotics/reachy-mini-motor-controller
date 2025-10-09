@@ -322,6 +322,5 @@ impl ReachyMiniMotorController {
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.dph_v2
             .write(self.serial_port.as_mut(), id, address, data)
-            .map_err(|e| e.into())
     }
 }
