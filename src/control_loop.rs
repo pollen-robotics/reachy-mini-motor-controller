@@ -190,7 +190,7 @@ impl ReachyMiniControlLoop {
 
         // Wait until voltage is stable at 5V
         info!("Waiting for voltage to be stable at 5V...");
-        let mut current_voltage = read_volt_with_retries(&mut c, read_allowed_retries).unwrap();
+        let mut current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
         let start_time = SystemTime::now();
         while current_voltage
             .iter()
@@ -212,7 +212,8 @@ impl ReachyMiniControlLoop {
         );
 
         // Reboot all motors on error status
-        c.reboot(true).unwrap();
+        c.reboot(true)
+            .map_err(|_| MotorError::CommunicationError())?;
 
         // Init last position by trying to read current positions
         // If the init fails, it probably means we have an hardware issue
