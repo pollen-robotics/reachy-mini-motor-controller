@@ -29,6 +29,7 @@ fn main() {
         Duration::from_secs_f64(1.0 / args.read_frequency),
         Some(Duration::from_secs(1)),
         5,
+        Duration::from_secs(30),
     )
     .unwrap();
 

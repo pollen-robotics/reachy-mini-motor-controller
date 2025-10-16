@@ -1,4 +1,4 @@
-use log::{warn};
+use log::{info, warn};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
@@ -61,9 +61,9 @@ pub struct ReachyMiniControlLoop {
     loop_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
     stop_signal: Arc<Mutex<bool>>,
     tx: Sender<MotorCommand>,
-    last_position: Arc<Mutex<Result<FullBodyPosition, CommunicationError>>>,
-    last_torque: Arc<Mutex<Result<bool, CommunicationError>>>,
-    last_control_mode: Arc<Mutex<Result<u8, CommunicationError>>>,
+    last_position: Arc<Mutex<Result<FullBodyPosition, MotorError>>>,
+    last_torque: Arc<Mutex<Result<bool, MotorError>>>,
+    last_control_mode: Arc<Mutex<Result<u8, MotorError>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
 }
 
@@ -115,28 +115,36 @@ impl std::fmt::Debug for ControlLoopStats {
 }
 
 #[derive(Debug, Clone)]
-pub enum CommunicationError {
+pub enum MotorError {
     MissingIds(Vec<u8>),
-    MotorCommunicationError(),
+    CommunicationError(),
     NoPowerError(),
+    VoltageRampUpTimeoutError(u16, Duration),
     PortNotFound(String),
 }
 
-impl std::error::Error for CommunicationError {}
-impl std::fmt::Display for CommunicationError {
+impl std::error::Error for MotorError {}
+impl std::fmt::Display for MotorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CommunicationError::MissingIds(ids) => {
+            MotorError::MissingIds(ids) => {
                 write!(f, "Missing motor IDs: {:?}!", ids)
             }
-            CommunicationError::MotorCommunicationError() => {
+            MotorError::CommunicationError() => {
                 write!(f, "Motor communication error!")
             }
-            CommunicationError::NoPowerError() => {
+            MotorError::NoPowerError() => {
                 write!(f, "No power detected on the motors!")
             }
-            CommunicationError::PortNotFound(port) => {
+            MotorError::PortNotFound(port) => {
                 write!(f, "Serial port not found: {}!", port)
+            }
+            MotorError::VoltageRampUpTimeoutError(voltage, duration) => {
+                write!(
+                    f,
+                    "Voltage did not ramp up to 5V ({}V) within {:?}!",
+                    voltage, duration
+                )
             }
         }
     }
@@ -148,7 +156,8 @@ impl ReachyMiniControlLoop {
         read_position_loop_period: Duration,
         stats_pub_period: Option<Duration>,
         read_allowed_retries: u64,
-    ) -> Result<Self, CommunicationError> {
+        voltage_rampup_timeout: Duration,
+    ) -> Result<Self, MotorError> {
         let stop_signal = Arc::new(Mutex::new(false));
         let stop_signal_clone = stop_signal.clone();
 
@@ -170,16 +179,41 @@ impl ReachyMiniControlLoop {
 
         match c.check_missing_ids() {
             Ok(missing_ids) if missing_ids.len() == 9 => {
-                return Err(CommunicationError::NoPowerError())
+                return Err(MotorError::NoPowerError());
             }
             Ok(missing_ids) if !missing_ids.is_empty() => {
-                return Err(CommunicationError::MissingIds(missing_ids))
+                return Err(MotorError::MissingIds(missing_ids));
             }
-            Ok(_) => {},
-            Err(_) => {
-                return Err(CommunicationError::MotorCommunicationError())
-            }
+            Ok(_) => {}
+            Err(_) => return Err(MotorError::CommunicationError()),
         }
+
+        // Wait until voltage is stable at 5V
+        info!("Waiting for voltage to be stable at 5V...");
+        let mut current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
+        let start_time = SystemTime::now();
+        while current_voltage
+            .iter()
+            .any(|&v| v < 45 && start_time.elapsed().unwrap() < voltage_rampup_timeout)
+        {
+            std::thread::sleep(Duration::from_millis(100));
+            current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
+        }
+        if current_voltage.iter().any(|&v| v < 45) {
+            return Err(MotorError::VoltageRampUpTimeoutError(
+                current_voltage.iter().cloned().min().unwrap_or(0),
+                voltage_rampup_timeout,
+            ));
+        }
+        info!(
+            "Voltage is stable at ~5V: {:?} (took {:?})",
+            current_voltage,
+            start_time.elapsed().unwrap()
+        );
+
+        // Reboot all motors on error status
+        c.reboot(true)
+            .map_err(|_| MotorError::CommunicationError())?;
 
         // Init last position by trying to read current positions
         // If the init fails, it probably means we have an hardware issue
@@ -237,28 +271,28 @@ impl ReachyMiniControlLoop {
         self.tx.blocking_send(command)
     }
 
-    pub fn get_last_position(&self) -> Result<FullBodyPosition, CommunicationError> {
+    pub fn get_last_position(&self) -> Result<FullBodyPosition, MotorError> {
         match &*self.last_position.lock().unwrap() {
             Ok(pos) => Ok(*pos),
             Err(e) => Err(e.clone()),
         }
     }
 
-    pub fn is_torque_enabled(&self) -> Result<bool, CommunicationError> {
+    pub fn is_torque_enabled(&self) -> Result<bool, MotorError> {
         match &*self.last_torque.lock().unwrap() {
             Ok(enabled) => Ok(*enabled),
             Err(e) => Err(e.clone()),
         }
     }
 
-    pub fn get_control_mode(&self) -> Result<u8, CommunicationError> {
+    pub fn get_control_mode(&self) -> Result<u8, MotorError> {
         match &*self.last_control_mode.lock().unwrap() {
             Ok(mode) => Ok(*mode),
             Err(e) => Err(e.clone()),
         }
     }
 
-    pub fn get_stats(&self) -> Result<Option<ControlLoopStats>, CommunicationError> {
+    pub fn get_stats(&self) -> Result<Option<ControlLoopStats>, MotorError> {
         match self.last_stats {
             Some((_, ref stats)) => {
                 let stats = stats.lock().unwrap();
@@ -279,9 +313,9 @@ fn run(
     mut c: ReachyMiniMotorController,
     stop_signal: Arc<Mutex<bool>>,
     mut rx: mpsc::Receiver<MotorCommand>,
-    last_position: Arc<Mutex<Result<FullBodyPosition, CommunicationError>>>,
-    last_torque: Arc<Mutex<Result<bool, CommunicationError>>>,
-    last_control_mode: Arc<Mutex<Result<u8, CommunicationError>>>,
+    last_position: Arc<Mutex<Result<FullBodyPosition, MotorError>>>,
+    last_torque: Arc<Mutex<Result<bool, MotorError>>>,
+    last_control_mode: Arc<Mutex<Result<u8, MotorError>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
     read_position_loop_period: Duration,
     read_allowed_retries: u64,
@@ -344,7 +378,7 @@ fn run(
                         read_dt.push(elapsed);
                     }
 
-                    if let Some((period, stats)) = &last_stats 
+                    if let Some((period, stats)) = &last_stats
                         && stats_t0.elapsed() > *period {
                             stats.lock().unwrap().read_dt.extend(read_dt.iter().cloned());
                             stats.lock().unwrap().write_dt.extend(write_dt.iter().cloned());
@@ -374,8 +408,8 @@ fn run(
 
 fn handle_commands(
     controller: &mut ReachyMiniMotorController,
-    last_torque: Arc<Mutex<Result<bool, CommunicationError>>>,
-    last_control_mode: Arc<Mutex<Result<u8, CommunicationError>>>,
+    last_torque: Arc<Mutex<Result<bool, MotorError>>>,
+    last_control_mode: Arc<Mutex<Result<u8, MotorError>>>,
     command: MotorCommand,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use MotorCommand::*;
@@ -435,34 +469,47 @@ fn handle_commands(
     }
 }
 
-pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, CommunicationError> {
+pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, MotorError> {
     match c.read_all_positions() {
         Ok(positions) => {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-                Ok(FullBodyPosition {
-                    body_yaw: positions[0],
-                    stewart: [
-                        positions[1],
-                        positions[2],
-                        positions[3],
-                        positions[4],
-                        positions[5],
-                        positions[6],
-                    ],
-                    antennas: [positions[7], positions[8]],
-                    timestamp: now.as_secs_f64(),
-                })
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0));
+            Ok(FullBodyPosition {
+                body_yaw: positions[0],
+                stewart: [
+                    positions[1],
+                    positions[2],
+                    positions[3],
+                    positions[4],
+                    positions[5],
+                    positions[6],
+                ],
+                antennas: [positions[7], positions[8]],
+                timestamp: now.as_secs_f64(),
+            })
         }
-        Err(_) => Err(CommunicationError::MotorCommunicationError()),
+        Err(_) => Err(MotorError::CommunicationError()),
+    }
+}
+
+pub fn read_volt(c: &mut ReachyMiniMotorController) -> Result<[u16; 9], String> {
+    match c.read_all_voltages() {
+        Ok(voltages) => {
+            if voltages.len() == 9 {
+                Ok(voltages)
+            } else {
+                Err(format!("Unexpected voltages length: {}", voltages.len()))
+            }
+        }
+        Err(e) => Err(e.to_string()),
     }
 }
 
 fn read_pos_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<FullBodyPosition, CommunicationError> {
+) -> Result<FullBodyPosition, MotorError> {
     for i in 0..retries {
         match read_pos(c) {
             Ok(pos) => return Ok(pos),
@@ -476,13 +523,33 @@ fn read_pos_with_retries(
             }
         }
     }
-    Err(CommunicationError::MotorCommunicationError())
+    Err(MotorError::CommunicationError())
+}
+
+fn read_volt_with_retries(
+    c: &mut ReachyMiniMotorController,
+    retries: u64,
+) -> Result<[u16; 9], MotorError> {
+    for i in 0..retries {
+        match read_volt(c) {
+            Ok(voltages) => return Ok(voltages),
+            Err(e) => {
+                warn!(
+                    "Failed to read voltages: {}. Retrying... {}/{}",
+                    e,
+                    i + 1,
+                    retries
+                );
+            }
+        }
+    }
+    Err(MotorError::CommunicationError())
 }
 
 fn read_torque_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<bool, CommunicationError> {
+) -> Result<bool, MotorError> {
     for i in 0..retries {
         match c.is_torque_enabled() {
             Ok(enabled) => {
@@ -498,13 +565,13 @@ fn read_torque_with_retries(
             }
         }
     }
-    Err(CommunicationError::MotorCommunicationError())
+    Err(MotorError::CommunicationError())
 }
 
 fn read_control_mode_with_retries(
     c: &mut ReachyMiniMotorController,
     retries: u64,
-) -> Result<u8, CommunicationError> {
+) -> Result<u8, MotorError> {
     for i in 0..retries {
         match c.read_stewart_platform_operating_mode() {
             Ok(mode) => {
@@ -520,5 +587,5 @@ fn read_control_mode_with_retries(
             }
         }
     }
-    Err(CommunicationError::MotorCommunicationError())
+    Err(MotorError::CommunicationError())
 }
