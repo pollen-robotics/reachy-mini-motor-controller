@@ -8,7 +8,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
-     sync::mpsc::{self, Receiver, Sender}, time
+    sync::mpsc::{self, Receiver, Sender},
+    time,
 };
 
 use crate::ReachyMiniMotorController;
@@ -311,16 +312,33 @@ impl ReachyMiniControlLoop {
         }
     }
 
-    pub fn async_read_raw_bytes(&self, id: u8, addr: u8, length: u8) -> Result<Vec<u8>, CommunicationError> {
+    pub fn async_read_raw_bytes(
+        &self,
+        id: u8,
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<u8>, CommunicationError> {
         let command = MotorCommand::ReadRawBytes { id, addr, length };
-        self.push_command(command).map_err(|_| CommunicationError::MotorCommunicationError())?;
-        let data = self.rx_raw_bytes.lock().unwrap().blocking_recv().ok_or(CommunicationError::MotorCommunicationError())?;
+        self.push_command(command)
+            .map_err(|_| CommunicationError::MotorCommunicationError())?;
+        let data = self
+            .rx_raw_bytes
+            .lock()
+            .unwrap()
+            .blocking_recv()
+            .ok_or(CommunicationError::MotorCommunicationError())?;
         Ok(data)
     }
 
-    pub fn async_write_raw_bytes(&self, id: u8, addr: u8, data: Vec<u8>) -> Result<(), CommunicationError> {
+    pub fn async_write_raw_bytes(
+        &self,
+        id: u8,
+        addr: u8,
+        data: Vec<u8>,
+    ) -> Result<(), CommunicationError> {
         let command = MotorCommand::WriteRawBytes { id, addr, data };
-        self.push_command(command).map_err(|_| CommunicationError::MotorCommunicationError())?;
+        self.push_command(command)
+            .map_err(|_| CommunicationError::MotorCommunicationError())?;
         Ok(())
     }
 }
@@ -353,7 +371,7 @@ fn run(
         let mut write_dt = Vec::new();
 
         let mut last_read_tick = std::time::Instant::now();
-        
+
         loop {
             tokio::select! {
                 maybe_command = rx.recv() => {
@@ -444,23 +462,26 @@ fn handle_commands(
     use MotorCommand::*;
 
     match command {
-        SetAllGoalPositions { positions } => controller.set_all_goal_positions([
-            positions.body_yaw,
-            positions.stewart[0],
-            positions.stewart[1],
-            positions.stewart[2],
-            positions.stewart[3],
-            positions.stewart[4],
-            positions.stewart[5],
-            positions.antennas[0],
-            positions.antennas[1],
-        ]).map(|_| None)
-        ,
-        SetStewartPlatformPosition { position } => {
-            controller.set_stewart_platform_position(position).map(|_| None)
-        }
+        SetAllGoalPositions { positions } => controller
+            .set_all_goal_positions([
+                positions.body_yaw,
+                positions.stewart[0],
+                positions.stewart[1],
+                positions.stewart[2],
+                positions.stewart[3],
+                positions.stewart[4],
+                positions.stewart[5],
+                positions.antennas[0],
+                positions.antennas[1],
+            ])
+            .map(|_| None),
+        SetStewartPlatformPosition { position } => controller
+            .set_stewart_platform_position(position)
+            .map(|_| None),
         SetBodyRotation { position } => controller.set_body_rotation(position).map(|_| None),
-        SetAntennasPositions { positions } => controller.set_antennas_positions(positions).map(|_| None),
+        SetAntennasPositions { positions } => {
+            controller.set_antennas_positions(positions).map(|_| None)
+        }
         EnableTorque() => {
             let res = controller.enable_torque();
             if res.is_ok()
@@ -479,9 +500,9 @@ fn handle_commands(
             }
             res.map(|_| None)
         }
-        SetStewartPlatformGoalCurrent { current } => {
-            controller.set_stewart_platform_goal_current(current).map(|_| None)
-        }
+        SetStewartPlatformGoalCurrent { current } => controller
+            .set_stewart_platform_goal_current(current)
+            .map(|_| None),
         SetStewartPlatformOperatingMode { mode } => {
             let res = controller.set_stewart_platform_operating_mode(mode);
             if res.is_ok()
@@ -491,9 +512,15 @@ fn handle_commands(
             }
             res.map(|_| None)
         }
-        SetAntennasOperatingMode { mode } => controller.set_antennas_operating_mode(mode).map(|_| None),
-        SetBodyRotationOperatingMode { mode } => controller.set_body_rotation_operating_mode(mode).map(|_| None),
-        EnableStewartPlatform { enable } => controller.enable_stewart_platform(enable).map(|_| None),
+        SetAntennasOperatingMode { mode } => {
+            controller.set_antennas_operating_mode(mode).map(|_| None)
+        }
+        SetBodyRotationOperatingMode { mode } => controller
+            .set_body_rotation_operating_mode(mode)
+            .map(|_| None),
+        EnableStewartPlatform { enable } => {
+            controller.enable_stewart_platform(enable).map(|_| None)
+        }
         EnableBodyRotation { enable } => controller.enable_body_rotation(enable).map(|_| None),
         EnableAntennas { enable } => controller.enable_antennas(enable).map(|_| None),
         ReadRawBytes { id, addr, length } => {
@@ -626,4 +653,3 @@ fn read_control_mode_with_retries(
     }
     Err(MotorError::CommunicationError())
 }
-
