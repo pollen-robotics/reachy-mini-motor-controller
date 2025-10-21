@@ -317,16 +317,16 @@ impl ReachyMiniControlLoop {
         id: u8,
         addr: u8,
         length: u8,
-    ) -> Result<Vec<u8>, CommunicationError> {
+    ) -> Result<Vec<u8>, MotorError> {
         let command = MotorCommand::ReadRawBytes { id, addr, length };
         self.push_command(command)
-            .map_err(|_| CommunicationError::MotorCommunicationError())?;
+            .map_err(|_| MotorError::CommunicationError())?;
         let data = self
             .rx_raw_bytes
             .lock()
             .unwrap()
             .blocking_recv()
-            .ok_or(CommunicationError::MotorCommunicationError())?;
+            .ok_or(MotorError::CommunicationError())?;
         Ok(data)
     }
 
@@ -335,10 +335,10 @@ impl ReachyMiniControlLoop {
         id: u8,
         addr: u8,
         data: Vec<u8>,
-    ) -> Result<(), CommunicationError> {
+    ) -> Result<(), MotorError> {
         let command = MotorCommand::WriteRawBytes { id, addr, data };
         self.push_command(command)
-            .map_err(|_| CommunicationError::MotorCommunicationError())?;
+            .map_err(|_| MotorError::CommunicationError())?;
         Ok(())
     }
 }
