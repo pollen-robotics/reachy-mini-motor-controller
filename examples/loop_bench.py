@@ -34,6 +34,7 @@ def main():
         timedelta(seconds=1.0 / args.read_frequency),
         5,
         timedelta(seconds=1),
+        timedelta(seconds=30),
     )
     write_period = 1.0 / args.write_frequency
 
