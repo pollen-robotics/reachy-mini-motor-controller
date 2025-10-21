@@ -464,6 +464,38 @@ impl ReachyMiniPyControlLoop {
             .get_stats()
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
+
+    /// Perform an asynchronous raw read of motor bytes.
+    /// # Arguments
+    /// * `id` - Motor ID to read from.
+    /// * `addr` - Address to read from.
+    /// * `length` - Number of bytes to read.
+    fn async_read_raw_bytes(&self, id: u8, addr: u8, length: u8) -> PyResult<Vec<u8>> {
+        self.inner
+            .async_read_raw_bytes(id, addr, length)
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "Failed to read raw bytes: {}",
+                    e.to_string()
+                ))
+            })
+    }
+
+    /// Perform an asynchronous raw write of motor bytes.
+    /// # Arguments
+    /// * `id` - Motor ID to write to.
+    /// * `addr` - Address to write to.
+    /// * `data` - Data bytes to write.
+    fn async_write_raw_bytes(&self, id: u8, addr: u8, data: Vec<u8>) -> PyResult<()> {
+        self.inner
+            .async_write_raw_bytes(id, addr, data)
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "Failed to write raw bytes: {}",
+                    e.to_string()
+                ))
+            })
+    }
 }
 
 #[pyo3::pymodule]

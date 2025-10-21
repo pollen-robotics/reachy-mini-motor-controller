@@ -1,5 +1,13 @@
 # Changelog
 
+### v1.1.0
+
+* Added async_read_raw_bytes and async_write_raw_bytes methods to read and write raw bytes to/from a motor by its ID.
+
+## v1.0.0
+
+* Update IDs to match beta release of the hardware (10-18)
+
 ## v0.6.0
 
 * Added new methods for querying motor control state (torque enabled status and Stewart platform operating mode) on both Rust and Python sides.
