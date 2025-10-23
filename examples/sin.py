@@ -24,3 +24,7 @@ def main():
         print(f"Current position: {cur}, Goal position: {pos}, Errors: {errors}")
 
         time.sleep(0.01)
+
+
+if __name__ == "__main__":
+    main()
