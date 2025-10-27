@@ -41,6 +41,7 @@ jobs:
             3.11
             3.12
             3.13
+            3.14
       - name: Generate pyo3 stub
         run: |
           cargo run --bin stub_gen
@@ -79,6 +80,7 @@ jobs:
             3.11
             3.12
             3.13
+            3.14
       - name: Generate pyo3 stub
         run: |
           cargo run --bin stub_gen
@@ -86,7 +88,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -113,12 +115,13 @@ jobs:
             3.11
             3.12
             3.13
+            3.14
           architecture: ${{ matrix.platform.target }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -144,6 +147,7 @@ jobs:
             3.11
             3.12
             3.13
+            3.14
       - name: Generate pyo3 stub
         run: |
           cargo run --bin stub_gen
@@ -151,7 +155,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13
+          args: --release --out dist --interpreter 3.10 3.11 3.12 3.13 3.14
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
