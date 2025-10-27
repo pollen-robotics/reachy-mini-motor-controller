@@ -287,6 +287,13 @@ impl ReachyMiniPyControlLoop {
     /// * `init_timeout` - Timeout for initial position read.
     /// * `stats_pub_period` - Optional period for publishing stats.
     #[new]
+    #[pyo3(signature = (
+        serialport,
+        read_position_loop_period,
+        allowed_retries = 5,
+        stats_pub_period = None,
+        voltage_rampup_timeout = Duration::from_secs(30),
+    ))]
     fn new(
         serialport: String,
         read_position_loop_period: Duration,
