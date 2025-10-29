@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use rustypot::servo::dynamixel::xl330;
 
@@ -37,6 +37,20 @@ impl ReachyMiniMotorController {
             serial_port,
             all_ids,
         })
+    }
+
+    pub fn get_motor_id_name(&self) -> HashMap<String, u8> {
+        let mut motor_id_name = HashMap::new();
+        motor_id_name.insert("body_rotation".to_string(), BODY_ROTATION_ID);
+        motor_id_name.insert("stewart_1".to_string(), STEWART_PLATFORM_IDS[0]);
+        motor_id_name.insert("stewart_2".to_string(), STEWART_PLATFORM_IDS[1]);
+        motor_id_name.insert("stewart_3".to_string(), STEWART_PLATFORM_IDS[2]);
+        motor_id_name.insert("stewart_4".to_string(), STEWART_PLATFORM_IDS[3]);
+        motor_id_name.insert("stewart_5".to_string(), STEWART_PLATFORM_IDS[4]);
+        motor_id_name.insert("stewart_6".to_string(), STEWART_PLATFORM_IDS[5]);
+        motor_id_name.insert("right_antenna".to_string(), ANTENNAS_IDS[0]);
+        motor_id_name.insert("left_antenna".to_string(), ANTENNAS_IDS[1]);
+        motor_id_name
     }
 
     pub fn reboot(&mut self, on_error_status_only: bool) -> Result<(), Box<dyn std::error::Error>> {

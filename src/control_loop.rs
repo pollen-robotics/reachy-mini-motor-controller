@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use std::{
+    collections::HashMap,
     fmt::Debug,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -66,6 +67,7 @@ pub struct ReachyMiniControlLoop {
     last_control_mode: Arc<Mutex<Result<u8, MotorError>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
     rx_raw_bytes: Arc<Mutex<Receiver<Vec<u8>>>>,
+    motor_id_name: HashMap<String, u8>,
 }
 
 #[derive(Debug, Clone)]
@@ -215,6 +217,8 @@ impl ReachyMiniControlLoop {
             start_time.elapsed().unwrap()
         );
 
+        let motor_id_name = c.get_motor_id_name();
+
         // Reboot all motors on error status
         c.reboot(true)
             .map_err(|_| MotorError::CommunicationError())?;
@@ -262,6 +266,7 @@ impl ReachyMiniControlLoop {
             last_control_mode,
             last_stats,
             rx_raw_bytes,
+            motor_id_name,
         })
     }
 
@@ -272,6 +277,10 @@ impl ReachyMiniControlLoop {
         if let Some(handle) = self.loop_handle.lock().unwrap().take() {
             handle.join().unwrap();
         }
+    }
+
+    pub fn get_motor_id_name(&self) -> Result<HashMap<String, u8>, MotorError> {
+        Ok(HashMap::new())
     }
 
     pub fn push_command(
@@ -330,12 +339,7 @@ impl ReachyMiniControlLoop {
         Ok(data)
     }
 
-    pub fn async_write_raw_bytes(
-        &self,
-        id: u8,
-        addr: u8,
-        data: Vec<u8>,
-    ) -> Result<(), MotorError> {
+    pub fn async_write_raw_bytes(&self, id: u8, addr: u8, data: Vec<u8>) -> Result<(), MotorError> {
         let command = MotorCommand::WriteRawBytes { id, addr, data };
         self.push_command(command)
             .map_err(|_| MotorError::CommunicationError())?;
