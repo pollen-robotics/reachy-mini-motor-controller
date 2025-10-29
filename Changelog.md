@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.2.0
+
+* Added motor ID to name mapping in the control loop for easier identification of motors.
+
 ### v1.1.0
 
 * Added async_read_raw_bytes and async_write_raw_bytes methods to read and write raw bytes to/from a motor by its ID.
