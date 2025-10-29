@@ -67,7 +67,7 @@ pub struct ReachyMiniControlLoop {
     last_control_mode: Arc<Mutex<Result<u8, MotorError>>>,
     last_stats: Option<(Duration, Arc<Mutex<ControlLoopStats>>)>,
     rx_raw_bytes: Arc<Mutex<Receiver<Vec<u8>>>>,
-    motor_id_name: HashMap<String, u8>,
+    motor_name_id: HashMap<String, u8>,
 }
 
 #[derive(Debug, Clone)]
@@ -217,7 +217,7 @@ impl ReachyMiniControlLoop {
             start_time.elapsed().unwrap()
         );
 
-        let motor_id_name = c.get_motor_id_name();
+        let motor_name_id = c.get_motor_name_id();
 
         // Reboot all motors on error status
         c.reboot(true)
@@ -266,7 +266,7 @@ impl ReachyMiniControlLoop {
             last_control_mode,
             last_stats,
             rx_raw_bytes,
-            motor_id_name,
+            motor_name_id,
         })
     }
 
@@ -279,8 +279,8 @@ impl ReachyMiniControlLoop {
         }
     }
 
-    pub fn get_motor_id_name(&self) -> HashMap<String, u8> {
-        self.motor_id_name.clone()
+    pub fn get_motor_name_id(&self) -> HashMap<String, u8> {
+        self.motor_name_id.clone()
     }
 
     pub fn push_command(

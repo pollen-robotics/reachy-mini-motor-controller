@@ -39,7 +39,7 @@ impl ReachyMiniMotorController {
         })
     }
 
-    pub fn get_motor_id_name(&self) -> HashMap<String, u8> {
+    pub fn get_motor_name_id(&self) -> HashMap<String, u8> {
         let mut motor_id_name = HashMap::new();
         motor_id_name.insert("body_rotation".to_string(), BODY_ROTATION_ID);
         motor_id_name.insert("stewart_1".to_string(), STEWART_PLATFORM_IDS[0]);

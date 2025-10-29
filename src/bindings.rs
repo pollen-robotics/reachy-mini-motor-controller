@@ -321,8 +321,8 @@ impl ReachyMiniPyControlLoop {
     }
 
     /// Get the id/name motors used in this controller.
-    fn get_motor_id_name(&self) -> HashMap<String, u8> {
-        self.inner.get_motor_id_name()
+    fn get_motor_name_id(&self) -> HashMap<String, u8> {
+        self.inner.get_motor_name_id()
     }
 
     /// Get the last successfully read motor positions.
