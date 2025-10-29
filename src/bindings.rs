@@ -321,13 +321,8 @@ impl ReachyMiniPyControlLoop {
     }
 
     /// Get the id/name motors used in this controller.
-    fn get_motor_id_name(&self) -> PyResult<HashMap<String, u8>> {
-        self.inner.get_motor_id_name().map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!(
-                "Failed to get motor id/name: {}",
-                e.to_string()
-            ))
-        })
+    fn get_motor_id_name(&self) -> HashMap<String, u8> {
+        self.inner.get_motor_id_name()
     }
 
     /// Get the last successfully read motor positions.

@@ -279,8 +279,8 @@ impl ReachyMiniControlLoop {
         }
     }
 
-    pub fn get_motor_id_name(&self) -> Result<HashMap<String, u8>, MotorError> {
-        Ok(HashMap::new())
+    pub fn get_motor_id_name(&self) -> HashMap<String, u8> {
+        self.motor_id_name.clone()
     }
 
     pub fn push_command(
