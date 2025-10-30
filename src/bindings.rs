@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use crate::control_loop::{
     ControlLoopStats, FullBodyPosition, MotorCommand, ReachyMiniControlLoop,
@@ -318,6 +318,11 @@ impl ReachyMiniPyControlLoop {
     fn close(&self) -> PyResult<()> {
         self.inner.close();
         Ok(())
+    }
+
+    /// Get the id/name motors used in this controller.
+    fn get_motor_name_id(&self) -> HashMap<String, u8> {
+        self.inner.get_motor_name_id()
     }
 
     /// Get the last successfully read motor positions.
