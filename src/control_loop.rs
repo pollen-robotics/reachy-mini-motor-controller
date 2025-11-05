@@ -122,7 +122,7 @@ impl std::fmt::Debug for ControlLoopStats {
 
 #[derive(Debug, Clone)]
 pub enum MotorError {
-    MissingIds(Vec<u8>),
+    MissingMotors(Vec<String>),
     CommunicationError(),
     NoPowerError(),
     VoltageRampUpTimeoutError(u16, Duration),
@@ -133,14 +133,17 @@ impl std::error::Error for MotorError {}
 impl std::fmt::Display for MotorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MotorError::MissingIds(ids) => {
-                write!(f, "Missing motor IDs: {:?}!", ids)
+            MotorError::MissingMotors(names) => {
+                write!(f, "Missing motors: {:?}!", names)
             }
             MotorError::CommunicationError() => {
                 write!(f, "Motor communication error!")
             }
             MotorError::NoPowerError() => {
-                write!(f, "No power detected on the motors!")
+                write!(
+                    f,
+                    "No motor detected. Check if the power supply is connected and turned on!"
+                )
             }
             MotorError::PortNotFound(port) => {
                 write!(f, "Serial port not found: {}!", port)
@@ -188,7 +191,22 @@ impl ReachyMiniControlLoop {
                 return Err(MotorError::NoPowerError());
             }
             Ok(missing_ids) if !missing_ids.is_empty() => {
-                return Err(MotorError::MissingIds(missing_ids));
+                let id_to_name: HashMap<u8, String> = c
+                    .get_motor_name_id()
+                    .iter()
+                    .map(|(k, v)| (v.clone(), k.clone()))
+                    .collect();
+
+                let missing_motors: Vec<String> = missing_ids
+                    .iter()
+                    .map(|id| {
+                        id_to_name
+                            .get(id)
+                            .unwrap_or(&format!("Unknown({})", id))
+                            .clone()
+                    })
+                    .collect();
+                return Err(MotorError::MissingMotors(missing_motors));
             }
             Ok(_) => {}
             Err(_) => return Err(MotorError::CommunicationError()),
