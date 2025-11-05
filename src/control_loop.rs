@@ -146,7 +146,11 @@ impl std::fmt::Display for MotorError {
                 )
             }
             MotorError::PortNotFound(port) => {
-                write!(f, "Serial port not found: {}!", port)
+                write!(
+                    f,
+                    "Check if your USB cable is connected. Could not find port: {}!",
+                    port
+                )
             }
             MotorError::VoltageRampUpTimeoutError(voltage, duration) => {
                 write!(
@@ -183,6 +187,10 @@ impl ReachyMiniControlLoop {
             )
         });
         let last_stats_clone = last_stats.clone();
+
+        if !std::path::Path::new(&serialport).exists() {
+            return Err(MotorError::PortNotFound(serialport));
+        }
 
         let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
 
