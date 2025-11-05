@@ -137,7 +137,10 @@ impl std::fmt::Display for MotorError {
                 write!(f, "Missing motors: {:?}!", names)
             }
             MotorError::CommunicationError() => {
-                write!(f, "Motor communication error!")
+                write!(
+                    f,
+                    "Motor communication error! Check connections and power supply."
+                )
             }
             MotorError::NoPowerError() => {
                 write!(
