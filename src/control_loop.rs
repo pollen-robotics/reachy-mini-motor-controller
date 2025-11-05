@@ -145,7 +145,7 @@ impl std::fmt::Display for MotorError {
             MotorError::NoPowerError() => {
                 write!(
                     f,
-                    "No motor detected. Check if the power supply is connected and turned on!"
+                    "No motors detected. Check if the power supply is connected and turned on!"
                 )
             }
             MotorError::PortNotFound(port) => {
