@@ -205,7 +205,7 @@ impl ReachyMiniControlLoop {
                 let id_to_name: HashMap<u8, String> = c
                     .get_motor_name_id()
                     .iter()
-                    .map(|(k, v)| (v.clone(), k.clone()))
+                    .map(|(name, id)| (id.clone(), name.clone()))
                     .collect();
 
                 let missing_motors: Vec<String> = missing_ids
