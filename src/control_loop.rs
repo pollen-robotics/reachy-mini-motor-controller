@@ -191,8 +191,17 @@ impl ReachyMiniControlLoop {
         });
         let last_stats_clone = last_stats.clone();
 
-        if !std::path::Path::new(&serialport).exists() {
-            return Err(MotorError::PortNotFound(serialport));
+        // Validate serial port based on operating system
+        if std::env::consts::OS != "windows" {
+            // On Unix-like systems, check if the port path exists
+            if !std::path::Path::new(&serialport).exists() {
+                return Err(MotorError::PortNotFound(serialport));
+            }
+        } else {
+            // On Windows, validate COM port format
+            if !serialport.starts_with("COM") {
+                return Err(MotorError::PortNotFound(serialport));
+            }
         }
 
         let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
