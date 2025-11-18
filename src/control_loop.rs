@@ -383,6 +383,40 @@ impl ReachyMiniControlLoop {
             .map_err(|_| MotorError::CommunicationError())?;
         Ok(())
     }
+
+    pub fn async_read_pid_gains(&self, id: u8) -> Result<(u16, u16, u16), MotorError> {
+        // https://emanual.robotis.com/docs/en/dxl/x/xl330-m288/#velocity-i-gain
+        const DIP_GAIN_ADDR: u8 = 80;
+
+        self.async_read_raw_bytes(id, DIP_GAIN_ADDR, 3 * 2)
+            .and_then(|data| {
+                if data.len() != 6 {
+                    return Err(MotorError::CommunicationError());
+                }
+                let d_gain = u16::from_le_bytes([data[0], data[1]]);
+                let i_gain = u16::from_le_bytes([data[2], data[3]]);
+                let p_gain = u16::from_le_bytes([data[4], data[5]]);
+                Ok((p_gain, i_gain, d_gain))
+            })
+    }
+
+    pub fn async_write_pid_gains(
+        &self,
+        id: u8,
+        p_gain: u16,
+        i_gain: u16,
+        d_gain: u16,
+    ) -> Result<(), MotorError> {
+        // https://emanual.robotis.com/docs/en/dxl/x/xl330-m288/#velocity-i-gain
+        const DIP_GAIN_ADDR: u8 = 80;
+
+        let mut data = Vec::with_capacity(6);
+        data.extend_from_slice(&d_gain.to_le_bytes());
+        data.extend_from_slice(&i_gain.to_le_bytes());
+        data.extend_from_slice(&p_gain.to_le_bytes());
+
+        self.async_write_raw_bytes(id, DIP_GAIN_ADDR, data)
+    }
 }
 
 impl Drop for ReachyMiniControlLoop {
