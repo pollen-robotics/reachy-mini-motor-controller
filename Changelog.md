@@ -1,5 +1,13 @@
 # Changelog
 
+### v1.3.1
+
+Fix port check for Windows.
+
+## v1.3.0
+
+Improve error messages.
+
 ### v1.2.0
 
 * Added motor ID to name mapping in the control loop for easier identification of motors.
