@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.0
+
+* Add support for setting motor position PID gains through the control loop interface.
+
 ### v1.3.1
 
 Fix port check for Windows.
