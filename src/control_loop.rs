@@ -191,7 +191,16 @@ impl ReachyMiniControlLoop {
         });
         let last_stats_clone = last_stats.clone();
 
+        // Validate serial port based on operating system
+
+        // On Unix-like systems, check if the port path exists
+        #[cfg(not(windows))]
         if !std::path::Path::new(&serialport).exists() {
+            return Err(MotorError::PortNotFound(serialport));
+        }
+        // On Windows, validate COM port format
+        #[cfg(windows)]
+        if !serialport.starts_with("COM") {
             return Err(MotorError::PortNotFound(serialport));
         }
 

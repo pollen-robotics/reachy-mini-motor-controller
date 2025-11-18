@@ -25,7 +25,7 @@ impl ReachyMiniMotorController {
     /// Create a new motor controller for the given serial port.
     ///
     /// # Arguments
-    /// * `serialport` - Path to the serial port device.
+    /// * `serialport` - Path to (Unix) or COM ID (Windows) of the serial port device.
     #[new]
     fn new(serialport: String) -> PyResult<Self> {
         let inner = Controller::new(&serialport)
@@ -281,7 +281,7 @@ impl ReachyMiniPyControlLoop {
     /// Create a new control loop for the motor controller.
     ///
     /// # Arguments
-    /// * `serialport` - Path to the serial port device.
+    /// * `serialport` - Path to (Unix) or COM ID (Windows) of the serial port device.
     /// * `update_loop_period` - Period between control loop updates.
     /// * `allowed_retries` - Number of allowed retries for reading positions.
     /// * `init_timeout` - Timeout for initial position read.
