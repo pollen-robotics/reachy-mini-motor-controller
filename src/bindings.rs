@@ -508,6 +508,33 @@ impl ReachyMiniPyControlLoop {
                 ))
             })
     }
+
+    /// Read pid gains for a given motor id.
+    /// # Arguments
+    /// * `id` - Motor ID to read from.
+    fn async_read_pid_gains(&self, id: u8) -> PyResult<(u16, u16, u16)> {
+        self.inner.async_read_pid_gains(id).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "Failed to read pid gains: {}",
+                e.to_string()
+            ))
+        })
+    }
+
+    /// Write pid gains for a given motor id.
+    /// # Arguments
+    /// * `id` - Motor ID to write to.
+    /// * `p` - Proportional gain.
+    /// * `i` - Integral gain.
+    /// * `d` - Derivative gain.
+    fn async_write_pid_gains(&self, id: u8, p: u16, i: u16, d: u16) -> PyResult<()> {
+        self.inner.async_write_pid_gains(id, p, i, d).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "Failed to write pid gains: {}",
+                e.to_string()
+            ))
+        })
+    }
 }
 
 #[pyo3::pymodule]
