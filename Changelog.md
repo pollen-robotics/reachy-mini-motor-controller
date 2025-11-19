@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.4.1
+
+* Fix a bug in the reboot on error status.
+
 ## v1.4.0
 
 * Add support for setting motor position PID gains through the control loop interface.

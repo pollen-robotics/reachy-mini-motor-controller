@@ -258,7 +258,7 @@ impl ReachyMiniControlLoop {
         let motor_name_id = c.get_motor_name_id();
 
         // Reboot all motors on error status
-        c.reboot(true)
+        c.reboot(true, Duration::from_secs(1))
             .map_err(|_| MotorError::CommunicationError())?;
 
         // Init last position by trying to read current positions

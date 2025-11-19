@@ -1,5 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
+use log::warn;
 use rustypot::servo::dynamixel::xl330;
 
 pub struct ReachyMiniMotorController {
@@ -53,7 +54,11 @@ impl ReachyMiniMotorController {
         motor_id_name
     }
 
-    pub fn reboot(&mut self, on_error_status_only: bool) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn reboot(
+        &mut self,
+        on_error_status_only: bool,
+        reboot_timeout: Duration,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut error_status = Vec::new();
         if on_error_status_only {
             error_status = xl330::sync_read_hardware_error_status(
@@ -62,22 +67,63 @@ impl ReachyMiniMotorController {
                 &self.all_ids,
             )?;
         }
-        //println!("Error status: {:?}", error_status);
 
-        let mut last_reboot_id = self.all_ids[0];
-        for (pos, id) in self.all_ids.iter().enumerate() {
-            if !on_error_status_only || (on_error_status_only && error_status[pos] == 1) {
-                self.dph_v2.reboot(self.serial_port.as_mut(), *id as u8)?;
-                last_reboot_id = *id;
-            }
+        let faulty_ids: Vec<u8> = if on_error_status_only {
+            self.all_ids
+                .iter()
+                .zip(error_status.iter())
+                .filter_map(|(&id, &status)| if status != 0 { Some(id) } else { None })
+                .collect()
+        } else {
+            self.all_ids.to_vec()
+        };
+
+        let name2id = self.get_motor_name_id();
+        let id2name: HashMap<u8, String> =
+            name2id.into_iter().map(|(name, id)| (id, name)).collect();
+
+        for id in &faulty_ids {
+            let name = id2name.get(id).unwrap();
+            warn!("Rebooting motor {} (id={})", name, id);
+            self.dph_v2.reboot(self.serial_port.as_mut(), *id as u8)?;
         }
-        while !self
-            .dph_v2
-            .ping(self.serial_port.as_mut(), last_reboot_id)?
-        {
+
+        let mut missing_ids = faulty_ids.clone();
+        let start_time = std::time::Instant::now();
+        while !missing_ids.is_empty() && start_time.elapsed() < reboot_timeout {
             std::thread::sleep(Duration::from_millis(100));
+            missing_ids = missing_ids
+                .into_iter()
+                .filter(|id| {
+                    let ping_result = self.dph_v2.ping(self.serial_port.as_mut(), *id);
+                    match ping_result {
+                        Ok(res) => !res,
+                        Err(_) => true,
+                    }
+                })
+                .collect();
         }
-        Ok(())
+        for id in &missing_ids {
+            let name = id2name.get(id).unwrap();
+            warn!(
+                "Motor {} (id={}) did not respond after reboot within timeout",
+                name, id
+            );
+        }
+
+        if missing_ids.is_empty() {
+            Ok(())
+        } else {
+            let names = missing_ids
+                .iter()
+                .map(|id| id2name.get(id).unwrap().to_string())
+                .collect::<Vec<String>>();
+            Err(format!(
+                "Some motors did not respond after reboot ({:?} - ids: {:?})",
+                names, missing_ids
+            )
+            .into())
+        }
     }
 
     pub fn check_missing_ids(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
