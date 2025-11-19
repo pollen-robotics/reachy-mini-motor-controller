@@ -66,7 +66,7 @@ impl ReachyMiniMotorController {
 
         let mut last_reboot_id = self.all_ids[0];
         for (pos, id) in self.all_ids.iter().enumerate() {
-            if !on_error_status_only || (on_error_status_only && error_status[pos] == 1) {
+            if !on_error_status_only || (on_error_status_only && error_status[pos] != 0) {
                 self.dph_v2.reboot(self.serial_port.as_mut(), *id as u8)?;
                 last_reboot_id = *id;
             }
