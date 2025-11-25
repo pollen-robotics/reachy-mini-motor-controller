@@ -58,6 +58,18 @@ impl ReachyMiniMotorController {
         Ok(())
     }
 
+    /// Enable torque on ids
+    fn enable_torque_on_ids(&self, ids: Vec<u8>) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+
+        inner
+            .enable_torque_on_ids(&ids)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
     /// Disable torque on all motors.
     fn disable_torque(&self) -> PyResult<()> {
         let mut inner = self.inner.lock().map_err(|_| {
@@ -66,6 +78,17 @@ impl ReachyMiniMotorController {
 
         inner
             .disable_torque()
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Disable torque on ids
+    fn disable_torque_on_ids(&self, ids: Vec<u8>) -> PyResult<()> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+        inner
+            .disable_torque_on_ids(&ids)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
@@ -386,10 +409,24 @@ impl ReachyMiniPyControlLoop {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    /// Enable torque on ids.
+    fn enable_torque_on_ids(&self, ids: Vec<u8>) -> PyResult<()> {
+        self.inner
+            .push_command(MotorCommand::EnableTorqueOnIds { ids })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     /// Disable torque on all motors.
     fn disable_torque(&self) -> PyResult<()> {
         self.inner
             .push_command(MotorCommand::DisableTorque())
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Disable torque on ids.
+    fn disable_torque_on_ids(&self, ids: Vec<u8>) -> PyResult<()> {
+        self.inner
+            .push_command(MotorCommand::DisableTorqueOnIds { ids })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 

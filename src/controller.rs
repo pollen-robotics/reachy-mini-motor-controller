@@ -233,8 +233,17 @@ impl ReachyMiniMotorController {
     pub fn enable_torque(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.set_torque(true)
     }
+
+    pub fn enable_torque_on_ids(&mut self, ids: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        self.set_torque_on_ids(ids, true)
+    }
+
     pub fn disable_torque(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.set_torque(false)
+    }
+
+    pub fn disable_torque_on_ids(&mut self, ids: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        self.set_torque_on_ids(ids, false)
     }
 
     fn set_torque(&mut self, enable: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -244,6 +253,17 @@ impl ReachyMiniMotorController {
             &self.all_ids,
             &[enable; 9],
         )?;
+
+        Ok(())
+    }
+
+    fn set_torque_on_ids(
+        &mut self,
+        ids: &[u8],
+        enable: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let enables = vec![enable; ids.len()];
+        xl330::sync_write_torque_enable(&self.dph_v2, self.serial_port.as_mut(), ids, &enables)?;
 
         Ok(())
     }

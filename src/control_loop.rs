@@ -77,7 +77,9 @@ pub enum MotorCommand {
     SetBodyRotation { position: f64 },
     SetAntennasPositions { positions: [f64; 2] },
     EnableTorque(),
+    EnableTorqueOnIds { ids: Vec<u8> },
     DisableTorque(),
+    DisableTorqueOnIds { ids: Vec<u8> },
     SetStewartPlatformGoalCurrent { current: [i16; 6] },
     SetStewartPlatformOperatingMode { mode: u8 },
     SetAntennasOperatingMode { mode: u8 },
@@ -567,8 +569,26 @@ fn handle_commands(
             }
             res.map(|_| None)
         }
+        EnableTorqueOnIds { ids } => {
+            let res = controller.enable_torque_on_ids(&ids);
+            if res.is_ok()
+                && let Ok(mut torque) = last_torque.lock()
+            {
+                *torque = Ok(true);
+            }
+            res.map(|_| None)
+        }
         DisableTorque() => {
             let res = controller.disable_torque();
+            if res.is_ok()
+                && let Ok(mut torque) = last_torque.lock()
+            {
+                *torque = Ok(false);
+            }
+            res.map(|_| None)
+        }
+        DisableTorqueOnIds { ids } => {
+            let res = controller.disable_torque_on_ids(&ids);
             if res.is_ok()
                 && let Ok(mut torque) = last_torque.lock()
             {
