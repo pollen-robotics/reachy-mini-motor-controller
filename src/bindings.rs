@@ -1,10 +1,10 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::mpsc::channel, time::Duration};
 
 use crate::control_loop::{
     ControlLoopStats, FullBodyPosition, MotorCommand, ReachyMiniControlLoop,
 };
 
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyBytes};
 use pyo3_stub_gen::{
     define_stub_info_gatherer,
     derive::{gen_stub_pyclass, gen_stub_pymethods},
@@ -290,6 +290,21 @@ impl ReachyMiniMotorController {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
+
+    /// Write raw packet data to the serial port.
+    ///
+    /// # Arguments
+    /// * `data` - Byte array of raw packet data to send.
+    fn write_raw_packet(&self, data: Py<PyBytes>, py: Python) -> PyResult<()> {
+        let bytes = data.as_bytes(py);
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("Failed to lock motor controller")
+        })?;
+        inner
+            .write_raw_packet(bytes)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
 }
 
 #[gen_stub_pyclass]
@@ -571,6 +586,24 @@ impl ReachyMiniPyControlLoop {
                 e.to_string()
             ))
         })
+    }
+
+    fn write_raw_packet(&self, data: Py<PyBytes>, py: Python) -> PyResult<Vec<u8>> {
+        let bytes = data.as_bytes(py);
+        let (tx, rx) = channel();
+        self.inner
+            .push_command(MotorCommand::WriteRawPacket {
+                packet: bytes.to_vec(),
+                tx,
+            })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        let first_packet = rx.recv().map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "Failed to receive raw packet response: {}",
+                e
+            ))
+        })?;
+        Ok(first_packet)
     }
 }
 
