@@ -86,10 +86,23 @@ pub enum MotorCommand {
     SetBodyRotationOperatingMode { mode: u8 },
     EnableStewartPlatform { enable: bool },
     EnableBodyRotation { enable: bool },
-    EnableAntennas { enable: bool },
+    EnableAntennas { enable: bool,
+    },
+    ReadRawBytes {
+        id: u8,
+        addr: u8,
+        length: u8,
+    },
+    WriteRawBytes {
+        id: u8,
+        addr: u8,
+        data: Vec<u8>,
+    },
 
-    ReadRawBytes { id: u8, addr: u8, length: u8 },
-    WriteRawBytes { id: u8, addr: u8, data: Vec<u8> },
+    WriteRawPacket {
+        packet: Vec<u8>,
+        tx: std::sync::mpsc::Sender<Vec<u8>>,
+    },
 }
 
 #[gen_stub_pyclass]
@@ -625,6 +638,11 @@ fn handle_commands(
         }
         WriteRawBytes { id, addr, data } => {
             controller.write_raw_bytes(id, addr, &data).map(|_| None)
+        }
+        WriteRawPacket { packet, tx } => {
+            let response = controller.write_raw_packet(&packet)?;
+            tx.send(response)?;
+            Ok(())
         }
     }
 }

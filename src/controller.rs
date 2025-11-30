@@ -403,4 +403,19 @@ impl ReachyMiniMotorController {
         self.dph_v2
             .write(self.serial_port.as_mut(), id, address, data)
     }
+
+    pub fn write_raw_packet(&mut self, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+        self.serial_port.write_all(data)?;
+        self.serial_port.flush()?;
+
+        let mut n = self.serial_port.bytes_to_read()? as usize;
+        while n == 0 {
+            std::thread::sleep(Duration::from_millis(5));
+            n = self.serial_port.bytes_to_read()? as usize;
+        }
+        let mut buff = vec![0u8; n];
+        self.serial_port.read_exact(&mut buff)?;
+
+        Ok(buff)
+    }
 }
