@@ -72,21 +72,46 @@ pub struct ReachyMiniControlLoop {
 
 #[derive(Debug, Clone)]
 pub enum MotorCommand {
-    SetAllGoalPositions { positions: FullBodyPosition },
-    SetStewartPlatformPosition { position: [f64; 6] },
-    SetBodyRotation { position: f64 },
-    SetAntennasPositions { positions: [f64; 2] },
+    SetAllGoalPositions {
+        positions: FullBodyPosition,
+    },
+    SetStewartPlatformPosition {
+        position: [f64; 6],
+    },
+    SetBodyRotation {
+        position: f64,
+    },
+    SetAntennasPositions {
+        positions: [f64; 2],
+    },
     EnableTorque(),
-    EnableTorqueOnIds { ids: Vec<u8> },
+    EnableTorqueOnIds {
+        ids: Vec<u8>,
+    },
     DisableTorque(),
-    DisableTorqueOnIds { ids: Vec<u8> },
-    SetStewartPlatformGoalCurrent { current: [i16; 6] },
-    SetStewartPlatformOperatingMode { mode: u8 },
-    SetAntennasOperatingMode { mode: u8 },
-    SetBodyRotationOperatingMode { mode: u8 },
-    EnableStewartPlatform { enable: bool },
-    EnableBodyRotation { enable: bool },
-    EnableAntennas { enable: bool,
+    DisableTorqueOnIds {
+        ids: Vec<u8>,
+    },
+    SetStewartPlatformGoalCurrent {
+        current: [i16; 6],
+    },
+    SetStewartPlatformOperatingMode {
+        mode: u8,
+    },
+    SetAntennasOperatingMode {
+        mode: u8,
+    },
+    SetBodyRotationOperatingMode {
+        mode: u8,
+    },
+    EnableStewartPlatform {
+        enable: bool,
+    },
+    EnableBodyRotation {
+        enable: bool,
+    },
+    EnableAntennas {
+        enable: bool,
     },
     ReadRawBytes {
         id: u8,
@@ -642,7 +667,7 @@ fn handle_commands(
         WriteRawPacket { packet, tx } => {
             let response = controller.write_raw_packet(&packet)?;
             tx.send(response)?;
-            Ok(())
+            Ok(None)
         }
     }
 }

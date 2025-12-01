@@ -409,7 +409,8 @@ impl ReachyMiniMotorController {
         self.serial_port.flush()?;
 
         let mut n = self.serial_port.bytes_to_read()? as usize;
-        while n == 0 {
+        let start = std::time::Instant::now();
+        while n == 0 && start.elapsed() < Duration::from_millis(10) {
             std::thread::sleep(Duration::from_millis(5));
             n = self.serial_port.bytes_to_read()? as usize;
         }
