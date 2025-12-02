@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.0
+
+* Add a raw write method to directly send bytes on the serial bus. 
+
 ### v1.4.1
 
 * Fix a bug in the reboot on error status.
