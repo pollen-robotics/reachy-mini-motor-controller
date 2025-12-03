@@ -29,6 +29,47 @@ pub struct FullBodyPosition {
     pub timestamp: f64, // seconds since UNIX epoch
 }
 
+/// Execute an operation with automatic retry on transient failures
+/// 
+/// Handles brief USB interruptions with fast retries 
+/// Fallback to control loop's slower retry mechanism for persistent issues
+fn with_retry<T, F>(mut op: F) -> Result<T, Box<dyn std::error::Error>>
+where
+    F: FnMut() -> Result<T, Box<dyn std::error::Error>>,
+{
+    const ATTEMPTS: u32 = 3;
+    const RETRY_DELAY_MS: u64 = 20;
+    
+    for attempt in 0..ATTEMPTS {
+        match op() {
+            Ok(val) => {
+                if attempt > 0 {
+                    info!("Serial I/O recovered after {} retries", attempt);
+                }
+                return Ok(val);
+            }
+            Err(e) if attempt < ATTEMPTS - 1 => {
+                // Only retry on transient errors
+                let is_transient = e.downcast_ref::<std::io::Error>()
+                    .map(|io_err| matches!(
+                        io_err.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
+                    ))
+                    .unwrap_or(false);
+                
+                if is_transient {
+                    std::thread::sleep(Duration::from_millis(RETRY_DELAY_MS));
+                } else {
+                    // Non-transient error, fail immediately
+                    return Err(e);
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    unreachable!()
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl FullBodyPosition {
@@ -630,40 +671,38 @@ fn handle_commands(
 }
 
 pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, MotorError> {
-    match c.read_all_positions() {
-        Ok(positions) => {
+    with_retry(|| c.read_all_positions())
+        .map(|positions| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-            Ok(FullBodyPosition {
+            FullBodyPosition {
                 body_yaw: positions[0],
                 stewart: [
-                    positions[1],
-                    positions[2],
-                    positions[3],
-                    positions[4],
-                    positions[5],
-                    positions[6],
+                    positions[1], 
+                    positions[2], 
+                    positions[3], 
+                    positions[4], 
+                    positions[5], 
+                    positions[6]
                 ],
                 antennas: [positions[7], positions[8]],
                 timestamp: now.as_secs_f64(),
-            })
-        }
-        Err(_) => Err(MotorError::CommunicationError()),
-    }
+            }
+        })
+        .map_err(|_| MotorError::CommunicationError())
 }
 
 pub fn read_volt(c: &mut ReachyMiniMotorController) -> Result<[u16; 9], String> {
-    match c.read_all_voltages() {
-        Ok(voltages) => {
+    with_retry(|| c.read_all_voltages())
+        .and_then(|voltages| {
             if voltages.len() == 9 {
                 Ok(voltages)
             } else {
-                Err(format!("Unexpected voltages length: {}", voltages.len()))
+                Err(format!("Unexpected voltages length: {}", voltages.len()).into())
             }
-        }
-        Err(e) => Err(e.to_string()),
-    }
+        })
+        .map_err(|e| e.to_string())
 }
 
 fn read_pos_with_retries(
