@@ -142,30 +142,29 @@ impl ReachyMiniMotorController {
     /// Returns an array of 9 input voltages in the following order:
     /// [body_rotation, stewart_1, stewart_2, stewart_3, stewart_4, stewart_5, stewart_6, antenna_right, antenna_left]
     pub fn read_all_voltages(&mut self) -> Result<[u16; 9], Box<dyn std::error::Error>> {
-        let mut volt = Vec::new();
-
-        volt.extend(xl330::sync_read_present_input_voltage(
+        let volt = xl330::sync_read_present_input_voltage(
             &self.dph_v2,
             self.serial_port.as_mut(),
             &self.all_ids,
-        )?);
-
-        Ok(volt.try_into().unwrap())
+        )?;
+        
+        volt.try_into()
+            .map_err(|_| "Invalid voltage array length: expected 9 elements".into())
     }
+        
 
     /// Read the current position of all servos.
     /// Returns an array of 9 positions in the following order:
     /// [body_rotation, stewart_1, stewart_2, stewart_3, stewart_4, stewart_5, stewart_6, antenna_right, antenna_left]
     pub fn read_all_positions(&mut self) -> Result<[f64; 9], Box<dyn std::error::Error>> {
-        let mut pos = Vec::new();
-
-        pos.extend(xl330::sync_read_present_position(
+        let pos = xl330::sync_read_present_position(
             &self.dph_v2,
             self.serial_port.as_mut(),
             &self.all_ids,
-        )?);
-
-        Ok(pos.try_into().unwrap())
+        )?;
+        
+        pos.try_into()
+            .map_err(|_| "Invalid position array length: expected 9 elements".into())
     }
 
     /// Set the goal position of all servos.
@@ -291,7 +290,8 @@ impl ReachyMiniMotorController {
             &STEWART_PLATFORM_IDS,
         )?;
 
-        Ok(currents.try_into().unwrap())
+        currents.try_into()
+            .map_err(|_| "Invalid current array length: expected 6 elements".into())
     }
 
     pub fn set_stewart_platform_operating_mode(
@@ -317,7 +317,8 @@ impl ReachyMiniMotorController {
             &STEWART_PLATFORM_IDS,
         )?;
 
-        Ok(modes.try_into().unwrap())
+        modes.try_into()
+            .map_err(|_| "Invalid mode array length: expected 6 elements".into())
     }
 
     pub fn set_antennas_operating_mode(
