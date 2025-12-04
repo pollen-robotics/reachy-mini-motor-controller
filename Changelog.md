@@ -1,5 +1,10 @@
 # Changelog
 
+### v1.5.1
+
+* Improve serial error handling
+ https://github.com/pollen-robotics/reachy-mini-motor-controller/pull/34 by @brainwavecoder9
+
 ## v1.5.0
 
 * Add a raw write method to directly send bytes on the serial bus. 
