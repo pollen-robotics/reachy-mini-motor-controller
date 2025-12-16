@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.5.2
+
+* Do not reboot on input voltage error to avoid the robot going limp.
+
 ### v1.5.1
 
 * Improve serial error handling
