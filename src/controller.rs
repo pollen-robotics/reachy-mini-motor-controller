@@ -60,6 +60,7 @@ impl ReachyMiniMotorController {
         reboot_timeout: Duration,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut error_status = Vec::new();
+
         if on_error_status_only {
             error_status = xl330::sync_read_hardware_error_status(
                 &self.dph_v2,
@@ -72,7 +73,14 @@ impl ReachyMiniMotorController {
             self.all_ids
                 .iter()
                 .zip(error_status.iter())
-                .filter_map(|(&id, &status)| if status != 0 { Some(id) } else { None })
+                // Ignore input voltage error (status == 1) for reboot decision.
+                .filter_map(|(&id, &status)| {
+                    if status != 0 && status != 1 {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
                 .collect()
         } else {
             self.all_ids.to_vec()
