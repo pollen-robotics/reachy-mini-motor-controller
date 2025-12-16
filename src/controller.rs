@@ -18,7 +18,7 @@ impl ReachyMiniMotorController {
         let dph_v2 = rustypot::DynamixelProtocolHandler::v2();
 
         let serial_port = serialport::new(serialport, 1_000_000)
-            .timeout(Duration::from_millis(10))
+            .timeout(Duration::from_millis(20))
             .open()?;
 
         let all_ids = [
