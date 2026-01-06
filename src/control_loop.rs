@@ -534,16 +534,16 @@ fn run(
                 maybe_command = rx.recv() => {
                     if let Some(command) = maybe_command {
                         let write_tick = std::time::Instant::now();
-                        let res = handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command).unwrap();
+                        if let Ok(res) = handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command) {
+                            if let Some(data) = res {
+                            // This means we had a ReadRawBytes command
+                                tx_raw_bytes.send(data).await.unwrap();
+                            }
 
-                        if let Some(data) = res {
-                           // This means we had a ReadRawBytes command
-                            tx_raw_bytes.send(data).await.unwrap();
-                        }
-
-                        if last_stats.is_some() {
-                            let elapsed = write_tick.elapsed().as_secs_f64();
-                            write_dt.push(elapsed);
+                            if last_stats.is_some() {
+                                let elapsed = write_tick.elapsed().as_secs_f64();
+                                write_dt.push(elapsed);
+                            }
                         }
                     }
                 }
@@ -601,7 +601,7 @@ fn run(
                         break;
                     }
                     if let Some(command) = rx.recv().await {
-                        handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command).unwrap();
+                        let _ = handle_commands(&mut c, last_torque.clone(), last_control_mode.clone(), command);
                     }
                 }
                 break;
