@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.5.3
+
+* Improve error handling in the control loop to prevent panics.
+
 ### v1.5.2
 
 * Do not reboot on input voltage error to avoid the robot going limp.
