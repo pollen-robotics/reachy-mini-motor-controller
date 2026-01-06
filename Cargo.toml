@@ -12,7 +12,7 @@ log = "0.4.27"
 pyo3 = "0.26.0"
 pyo3-log = "0.13.1"
 pyo3-stub-gen = "0.16.1"
-rustypot = "1.4.1"
+rustypot = "1.4.2"
 serialport = { version = "4.7.2", default-features = false }
 tokio = { version = "1.46.1", features = ["full"] }
 clap = { version = "4", features = ["derive"] }
