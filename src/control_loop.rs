@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::info;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
@@ -30,17 +30,16 @@ pub struct FullBodyPosition {
 }
 
 /// Execute an operation with automatic retry on transient failures
-/// 
-/// Handles brief USB interruptions with fast retries 
+///
+/// Handles brief USB interruptions with fast retries
 /// Fallback to control loop's slower retry mechanism for persistent issues
-fn with_retry<T, F>(mut op: F) -> Result<T, Box<dyn std::error::Error>>
+fn with_retry<T, F>(mut op: F, attempts: u64) -> Result<T, Box<dyn std::error::Error>>
 where
     F: FnMut() -> Result<T, Box<dyn std::error::Error>>,
 {
-    const ATTEMPTS: u32 = 3;
     const RETRY_DELAY_MS: u64 = 20;
-    
-    for attempt in 0..ATTEMPTS {
+
+    for attempt in 0..attempts {
         match op() {
             Ok(val) => {
                 if attempt > 0 {
@@ -48,15 +47,18 @@ where
                 }
                 return Ok(val);
             }
-            Err(e) if attempt < ATTEMPTS - 1 => {
+            Err(e) if attempt < attempts - 1 => {
                 // Only retry on transient errors
-                let is_transient = e.downcast_ref::<std::io::Error>()
-                    .map(|io_err| matches!(
-                        io_err.kind(),
-                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
-                    ))
+                let is_transient = e
+                    .downcast_ref::<std::io::Error>()
+                    .map(|io_err| {
+                        matches!(
+                            io_err.kind(),
+                            std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
+                        )
+                    })
                     .unwrap_or(false);
-                
+
                 if is_transient {
                     std::thread::sleep(Duration::from_millis(RETRY_DELAY_MS));
                 } else {
@@ -315,14 +317,16 @@ impl ReachyMiniControlLoop {
 
         // Wait until voltage is stable at 5V
         info!("Waiting for voltage to be stable at 5V...");
-        let mut current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
+        let mut current_voltage = with_retry(|| c.read_all_voltages(), read_allowed_retries)
+            .map_err(|_| MotorError::CommunicationError())?;
         let start_time = SystemTime::now();
         while current_voltage
             .iter()
             .any(|&v| v < 45 && start_time.elapsed().unwrap() < voltage_rampup_timeout)
         {
             std::thread::sleep(Duration::from_millis(100));
-            current_voltage = read_volt_with_retries(&mut c, read_allowed_retries)?;
+            current_voltage = with_retry(|| c.read_all_voltages(), read_allowed_retries)
+                .map_err(|_| MotorError::CommunicationError())?;
         }
         if current_voltage.iter().any(|&v| v < 45) {
             return Err(MotorError::VoltageRampUpTimeoutError(
@@ -345,9 +349,14 @@ impl ReachyMiniControlLoop {
         // Init last position by trying to read current positions
         // If the init fails, it probably means we have an hardware issue
         // so it's better to fail.
-        let last_position = read_pos_with_retries(&mut c, read_allowed_retries)?;
-        let last_torque = read_torque_with_retries(&mut c, read_allowed_retries)?;
-        let last_control_mode = read_control_mode_with_retries(&mut c, read_allowed_retries)?;
+        let last_position = read_pos(&mut c, read_allowed_retries)?;
+        let last_torque = with_retry(|| c.is_torque_enabled(), read_allowed_retries)
+            .map_err(|_| MotorError::CommunicationError())?;
+        let last_control_mode = with_retry(
+            || c.read_stewart_platform_operating_mode(),
+            read_allowed_retries,
+        )
+        .map_err(|_| MotorError::CommunicationError())?[0];
 
         let last_position = Arc::new(Mutex::new(Ok(last_position)));
         let last_position_clone = last_position.clone();
@@ -520,7 +529,6 @@ fn run(
 ) {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         let mut interval = time::interval(read_position_loop_period);
-        let mut error_count = 0;
 
         // Stats related variables
         let mut stats_t0 = std::time::Instant::now();
@@ -554,25 +562,23 @@ fn run(
                         last_read_tick = read_tick;
                     }
 
-                    match read_pos(&mut c) {
+                    match read_pos(&mut c, read_allowed_retries) {
                         Ok(positions) => {
-                            error_count = 0;
-                                let now = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-                                let last = FullBodyPosition {
-                                    body_yaw: positions.body_yaw,
-                                    stewart: positions.stewart,
-                                    antennas: positions.antennas,
-                                    timestamp: now.as_secs_f64(),
-                                };
-                                if let Ok(mut pos) = last_position.lock() {
-                                    *pos = Ok(last);
-                                }
+                            let now = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_else(|_| std::time::Duration::from_secs(0));
+                            let last = FullBodyPosition {
+                                body_yaw: positions.body_yaw,
+                                stewart: positions.stewart,
+                                antennas: positions.antennas,
+                                timestamp: now.as_secs_f64(),
+                            };
+                            if let Ok(mut pos) = last_position.lock() {
+                                *pos = Ok(last);
+                            }
                         },
                         Err(e) => {
-                            error_count += 1;
-                            if error_count >= read_allowed_retries && let Ok(mut pos) = last_position.lock() {
+                            if let Ok(mut pos) = last_position.lock() {
                                 *pos = Err(e);
                             }
                         },
@@ -713,8 +719,11 @@ fn handle_commands(
     }
 }
 
-pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, MotorError> {
-    with_retry(|| c.read_all_positions())
+pub fn read_pos(
+    c: &mut ReachyMiniMotorController,
+    read_allowed_retries: u64,
+) -> Result<FullBodyPosition, MotorError> {
+    with_retry(|| c.read_all_positions(), read_allowed_retries)
         .map(|positions| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -722,112 +731,16 @@ pub fn read_pos(c: &mut ReachyMiniMotorController) -> Result<FullBodyPosition, M
             FullBodyPosition {
                 body_yaw: positions[0],
                 stewart: [
-                    positions[1], 
-                    positions[2], 
-                    positions[3], 
-                    positions[4], 
-                    positions[5], 
-                    positions[6]
+                    positions[1],
+                    positions[2],
+                    positions[3],
+                    positions[4],
+                    positions[5],
+                    positions[6],
                 ],
                 antennas: [positions[7], positions[8]],
                 timestamp: now.as_secs_f64(),
             }
         })
         .map_err(|_| MotorError::CommunicationError())
-}
-
-pub fn read_volt(c: &mut ReachyMiniMotorController) -> Result<[u16; 9], String> {
-    with_retry(|| c.read_all_voltages())
-        .and_then(|voltages| {
-            if voltages.len() == 9 {
-                Ok(voltages)
-            } else {
-                Err(format!("Unexpected voltages length: {}", voltages.len()).into())
-            }
-        })
-        .map_err(|e| e.to_string())
-}
-
-fn read_pos_with_retries(
-    c: &mut ReachyMiniMotorController,
-    retries: u64,
-) -> Result<FullBodyPosition, MotorError> {
-    for i in 0..retries {
-        match read_pos(c) {
-            Ok(pos) => return Ok(pos),
-            Err(e) => {
-                warn!(
-                    "Failed to read positions: {:?}. Retrying... {}/{}",
-                    e,
-                    i + 1,
-                    retries
-                );
-            }
-        }
-    }
-    Err(MotorError::CommunicationError())
-}
-
-fn read_volt_with_retries(
-    c: &mut ReachyMiniMotorController,
-    retries: u64,
-) -> Result<[u16; 9], MotorError> {
-    for i in 0..retries {
-        match read_volt(c) {
-            Ok(voltages) => return Ok(voltages),
-            Err(e) => {
-                warn!(
-                    "Failed to read voltages: {}. Retrying... {}/{}",
-                    e,
-                    i + 1,
-                    retries
-                );
-            }
-        }
-    }
-    Err(MotorError::CommunicationError())
-}
-
-fn read_torque_with_retries(
-    c: &mut ReachyMiniMotorController,
-    retries: u64,
-) -> Result<bool, MotorError> {
-    for i in 0..retries {
-        match c.is_torque_enabled() {
-            Ok(enabled) => {
-                return Ok(enabled);
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to read torque status: {}. Retrying... {}/{}",
-                    e,
-                    i + 1,
-                    retries
-                );
-            }
-        }
-    }
-    Err(MotorError::CommunicationError())
-}
-
-fn read_control_mode_with_retries(
-    c: &mut ReachyMiniMotorController,
-    retries: u64,
-) -> Result<u8, MotorError> {
-    for i in 0..retries {
-        match c.read_stewart_platform_operating_mode() {
-            Ok(mode) => {
-                return Ok(mode[0]);
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to read operating mode: {}. Retrying... {}/{}",
-                    e,
-                    i + 1,
-                    retries
-                );
-            }
-        }
-    }
-    Err(MotorError::CommunicationError())
 }

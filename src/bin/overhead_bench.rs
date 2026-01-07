@@ -13,7 +13,7 @@ fn main() {
 
         let tic = std::time::Instant::now();
         for _ in 0..N {
-            let _ = read_pos(&mut c);
+            let _ = read_pos(&mut c, 3);
         }
         let elapsed = tic.elapsed();
         println!("Full loop read elapsed time: {:?}", elapsed);
