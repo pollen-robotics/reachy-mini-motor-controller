@@ -239,6 +239,13 @@ impl std::fmt::Display for MotorError {
                     port
                 )
             }
+            MotorError::CouldNotOpenPort(port) => {
+                write!(
+                    f,
+                    "Could not open serial port: {}! Check permissions and if the port is already in use.",
+                    port
+                )
+            }
             MotorError::VoltageRampUpTimeoutError(voltage, duration) => {
                 write!(
                     f,
