@@ -210,6 +210,7 @@ pub enum MotorError {
     NoPowerError(),
     VoltageRampUpTimeoutError(u16, Duration),
     PortNotFound(String),
+    CouldNotOpenPort(String),
 }
 
 impl std::error::Error for MotorError {}
@@ -287,7 +288,8 @@ impl ReachyMiniControlLoop {
             return Err(MotorError::PortNotFound(serialport));
         }
 
-        let mut c = ReachyMiniMotorController::new(serialport.as_str()).unwrap();
+        let mut c = ReachyMiniMotorController::new(serialport.as_str())
+            .map_err(|_| MotorError::CouldNotOpenPort(serialport.clone()))?;
 
         match c.check_missing_ids() {
             Ok(missing_ids) if missing_ids.len() == 9 => {
@@ -402,8 +404,23 @@ impl ReachyMiniControlLoop {
         if let Ok(mut stop) = self.stop_signal.lock() {
             *stop = true;
         }
-        if let Some(handle) = self.loop_handle.lock().unwrap().take() {
-            handle.join().unwrap();
+        match self.loop_handle.lock() {
+            Ok(mut opt_handle) => {
+                if let Some(handle) = opt_handle.take() {
+                    if let Err(e) = handle.join() {
+                        log::error!("Failed to join control loop thread: {:?}", e);
+                    }
+                }
+            }
+            Err(poisoned) => {
+                // If the mutex is poisoned, try to recover the handle
+                let mut opt_handle = poisoned.into_inner();
+                if let Some(handle) = opt_handle.take() {
+                    if let Err(e) = handle.join() {
+                        log::error!("Failed to join control loop thread (poisoned): {:?}", e);
+                    }
+                }
+            }
         }
     }
 
@@ -419,21 +436,43 @@ impl ReachyMiniControlLoop {
     }
 
     pub fn get_last_position(&self) -> Result<FullBodyPosition, MotorError> {
-        match &*self.last_position.lock().unwrap() {
+        let guard = match self.last_position.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                log::error!("last_position mutex was poisoned");
+                poisoned.into_inner()
+            }
+        };
+        match &*guard {
             Ok(pos) => Ok(*pos),
             Err(e) => Err(e.clone()),
         }
     }
 
     pub fn is_torque_enabled(&self) -> Result<bool, MotorError> {
-        match &*self.last_torque.lock().unwrap() {
+        let guard = match self.last_torque.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                log::error!("last_torque mutex was poisoned");
+                poisoned.into_inner()
+            }
+        };
+        match &*guard {
             Ok(enabled) => Ok(*enabled),
             Err(e) => Err(e.clone()),
         }
     }
 
     pub fn get_control_mode(&self) -> Result<u8, MotorError> {
-        match &*self.last_control_mode.lock().unwrap() {
+        let guard = match self.last_control_mode.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                log::error!("last_control_mode mutex was poisoned");
+                poisoned.into_inner()
+            }
+        };
+
+        match &*guard {
             Ok(mode) => Ok(*mode),
             Err(e) => Err(e.clone()),
         }
@@ -442,8 +481,14 @@ impl ReachyMiniControlLoop {
     pub fn get_stats(&self) -> Result<Option<ControlLoopStats>, MotorError> {
         match self.last_stats {
             Some((_, ref stats)) => {
-                let stats = stats.lock().unwrap();
-                Ok(Some(stats.clone()))
+                let guard = match stats.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => {
+                        log::error!("last_stats mutex was poisoned");
+                        poisoned.into_inner()
+                    }
+                };
+                Ok(Some(guard.clone()))
             }
             None => Ok(None),
         }
