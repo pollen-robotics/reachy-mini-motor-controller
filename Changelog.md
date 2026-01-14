@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.5.4
+
+* Avoid lock poisoning when run loop panic.
+
 ### v1.5.3
 
 * Improve error handling in the control loop to prevent panics.
