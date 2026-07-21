@@ -546,9 +546,10 @@ impl ReachyMiniPyControlLoop {
     }
 
     /// Read the hardware error status of all servos with one sync-read.
-    fn async_read_all_hardware_error_statuses(&self) -> PyResult<HashMap<u8, u8>> {
-        self.inner
-            .async_read_all_hardware_error_statuses()
+    /// Raises an error instead of returning partial data if any servo does not respond.
+    fn async_read_all_hardware_error_statuses(&self, py: Python<'_>) -> PyResult<HashMap<u8, u8>> {
+        let inner = self.inner.clone();
+        py.detach(move || inner.async_read_all_hardware_error_statuses())
             .map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!(
                     "Failed to read hardware error statuses: {}",
@@ -558,13 +559,16 @@ impl ReachyMiniPyControlLoop {
     }
 
     /// Read the current input voltage of all servos with one sync-read.
-    fn async_read_all_voltages(&self) -> PyResult<HashMap<u8, u16>> {
-        self.inner.async_read_all_voltages().map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!(
-                "Failed to read input voltages: {}",
-                e
-            ))
-        })
+    /// Raises an error instead of returning partial data if any servo does not respond.
+    fn async_read_all_voltages(&self, py: Python<'_>) -> PyResult<HashMap<u8, u16>> {
+        let inner = self.inner.clone();
+        py.detach(move || inner.async_read_all_voltages())
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "Failed to read input voltages: {}",
+                    e
+                ))
+            })
     }
 
     /// Perform an asynchronous raw write of motor bytes.

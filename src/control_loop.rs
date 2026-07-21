@@ -516,6 +516,7 @@ impl ReachyMiniControlLoop {
     }
 
     /// Read the hardware error status of all servos with one sync-read.
+    /// Returns an error instead of partial data if any servo does not respond.
     pub fn async_read_all_hardware_error_statuses(&self) -> Result<HashMap<u8, u8>, MotorError> {
         let (tx, rx) = std::sync::mpsc::channel();
         self.push_command(MotorCommand::ReadAllHardwareErrorStatuses { tx })
@@ -525,6 +526,7 @@ impl ReachyMiniControlLoop {
     }
 
     /// Read the current input voltage of all servos with one sync-read.
+    /// Returns an error instead of partial data if any servo does not respond.
     pub fn async_read_all_voltages(&self) -> Result<HashMap<u8, u16>, MotorError> {
         let (tx, rx) = std::sync::mpsc::channel();
         self.push_command(MotorCommand::ReadAllVoltages { tx })
