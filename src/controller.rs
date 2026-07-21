@@ -13,6 +13,10 @@ const ANTENNAS_IDS: [u8; 2] = [17, 18]; // Right and Left antennas
 const STEWART_PLATFORM_IDS: [u8; 6] = [11, 12, 13, 14, 15, 16];
 const BODY_ROTATION_ID: u8 = 10;
 
+fn values_by_id<T, const N: usize>(ids: &[u8; N], values: [T; N]) -> HashMap<u8, T> {
+    ids.iter().copied().zip(values).collect()
+}
+
 impl ReachyMiniMotorController {
     pub fn new(serialport: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let dph_v2 = rustypot::DynamixelProtocolHandler::v2();
@@ -59,17 +63,13 @@ impl ReachyMiniMotorController {
         on_error_status_only: bool,
         reboot_timeout: Duration,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut error_status = Vec::new();
+        let error_status = if on_error_status_only {
+            Some(self.read_all_hardware_error_statuses_ordered()?)
+        } else {
+            None
+        };
 
-        if on_error_status_only {
-            error_status = xl330::sync_read_hardware_error_status(
-                &self.dph_v2,
-                self.serial_port.as_mut(),
-                &self.all_ids,
-            )?;
-        }
-
-        let faulty_ids: Vec<u8> = if on_error_status_only {
+        let faulty_ids: Vec<u8> = if let Some(error_status) = error_status {
             self.all_ids
                 .iter()
                 .zip(error_status.iter())
@@ -159,7 +159,44 @@ impl ReachyMiniMotorController {
         volt.try_into()
             .map_err(|_| "Invalid voltage array length: expected 9 elements".into())
     }
-        
+
+    /// Read the current input voltage of all servos with one sync-read.
+    /// Returns a map keyed by servo ID.
+    ///
+    /// The read is atomic from the caller's perspective: if any servo does not
+    /// respond, the method returns an error rather than a partial map.
+    pub fn read_all_voltages_by_id(
+        &mut self,
+    ) -> Result<HashMap<u8, u16>, Box<dyn std::error::Error>> {
+        let voltages = self.read_all_voltages()?;
+        Ok(values_by_id(&self.all_ids, voltages))
+    }
+
+    /// Read the hardware error status of all servos with one sync-read.
+    /// Returns a map keyed by servo ID.
+    ///
+    /// The read is atomic from the caller's perspective: if any servo does not
+    /// respond, the method returns an error rather than a partial map.
+    pub fn read_all_hardware_error_statuses(
+        &mut self,
+    ) -> Result<HashMap<u8, u8>, Box<dyn std::error::Error>> {
+        let statuses = self.read_all_hardware_error_statuses_ordered()?;
+        Ok(values_by_id(&self.all_ids, statuses))
+    }
+
+    fn read_all_hardware_error_statuses_ordered(
+        &mut self,
+    ) -> Result<[u8; 9], Box<dyn std::error::Error>> {
+        let statuses = xl330::sync_read_hardware_error_status(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &self.all_ids,
+        )?;
+
+        statuses
+            .try_into()
+            .map_err(|_| "Invalid hardware error status array length: expected 9 elements".into())
+    }
 
     /// Read the current position of all servos.
     /// Returns an array of 9 positions in the following order:
@@ -427,5 +464,19 @@ impl ReachyMiniMotorController {
         self.serial_port.read_exact(&mut buff)?;
 
         Ok(buff)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::values_by_id;
+
+    #[test]
+    fn values_by_id_preserves_servo_association() {
+        let values = values_by_id(&[10, 11, 17], [100, 110, 170]);
+
+        assert_eq!(values.get(&10), Some(&100));
+        assert_eq!(values.get(&11), Some(&110));
+        assert_eq!(values.get(&17), Some(&170));
     }
 }
