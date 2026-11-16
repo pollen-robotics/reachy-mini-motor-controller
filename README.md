@@ -22,3 +22,6 @@ cd `target/wheels`
 pip install reachy_mini_motor_controller...
 ```
 
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
