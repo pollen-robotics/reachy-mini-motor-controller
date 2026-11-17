@@ -667,6 +667,19 @@ fn run(
     })
 }
 
+/// A mode change resets Goal PWM to 100 %: cap it again right away rather than
+/// at the next periodic refresh, up to a second later.
+fn recap_after_mode_change<T, E>(
+    controller: &mut ReachyMiniMotorController,
+    mode_change: &Result<T, E>,
+) {
+    if mode_change.is_ok()
+        && let Err(e) = controller.cap_motor_voltage()
+    {
+        log::warn!("Failed to cap the motor voltage after a mode change: {}", e);
+    }
+}
+
 fn handle_commands(
     controller: &mut ReachyMiniMotorController,
     last_torque: Arc<Mutex<Result<bool, MotorError>>>,
@@ -743,14 +756,19 @@ fn handle_commands(
             {
                 *control_mode = Ok(mode);
             }
+            recap_after_mode_change(controller, &res);
             res.map(|_| ())
         }
         SetAntennasOperatingMode { mode } => {
-            controller.set_antennas_operating_mode(mode).map(|_| ())
+            let res = controller.set_antennas_operating_mode(mode);
+            recap_after_mode_change(controller, &res);
+            res.map(|_| ())
         }
-        SetBodyRotationOperatingMode { mode } => controller
-            .set_body_rotation_operating_mode(mode)
-            .map(|_| ()),
+        SetBodyRotationOperatingMode { mode } => {
+            let res = controller.set_body_rotation_operating_mode(mode);
+            recap_after_mode_change(controller, &res);
+            res.map(|_| ())
+        }
         EnableStewartPlatform { enable } => {
             controller.enable_stewart_platform(enable).map(|_| ())
         }

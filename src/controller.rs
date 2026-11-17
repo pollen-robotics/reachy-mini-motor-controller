@@ -31,6 +31,21 @@ fn goal_pwm_for(supply: u16) -> u16 {
     (GOAL_PWM_MAX * (MOTOR_MAX_VOLTAGE / supply).min(1.0)).round() as u16
 }
 
+// XL330 PWM control mode. There, Goal PWM is the drive command, not a ceiling,
+// so the voltage cap would make the motor turn: the mode is refused.
+pub const PWM_OPERATING_MODE: u8 = 16;
+
+/// Refuse the operating modes the controller cannot run safely (PWM mode).
+pub fn check_operating_mode(mode: u8) -> Result<(), String> {
+    if mode == PWM_OPERATING_MODE {
+        return Err(format!(
+            "Operating mode {} (PWM control) is not supported: the motor voltage cap writes Goal PWM",
+            mode
+        ));
+    }
+    Ok(())
+}
+
 impl ReachyMiniMotorController {
     pub fn new(serialport: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let dph_v2 = rustypot::DynamixelProtocolHandler::v2();
@@ -342,6 +357,7 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        check_operating_mode(mode)?;
         xl330::sync_write_operating_mode(
             &self.dph_v2,
             self.serial_port.as_mut(),
@@ -369,6 +385,7 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        check_operating_mode(mode)?;
         xl330::sync_write_operating_mode(
             &self.dph_v2,
             self.serial_port.as_mut(),
@@ -383,6 +400,7 @@ impl ReachyMiniMotorController {
         &mut self,
         mode: u8,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        check_operating_mode(mode)?;
         xl330::sync_write_operating_mode(
             &self.dph_v2,
             self.serial_port.as_mut(),
@@ -468,7 +486,7 @@ impl ReachyMiniMotorController {
 
 #[cfg(test)]
 mod tests {
-    use super::goal_pwm_for;
+    use super::{check_operating_mode, goal_pwm_for, PWM_OPERATING_MODE};
 
     #[test]
     fn goal_pwm_caps_the_motor_voltage_at_6v() {
@@ -477,5 +495,13 @@ mod tests {
         assert_eq!(goal_pwm_for(60), 885); // supply within the rating: no cap
         assert_eq!(goal_pwm_for(50), 885);
         assert_eq!(goal_pwm_for(0), 699); // no reading: nominal supply
+    }
+
+    #[test]
+    fn pwm_operating_mode_is_refused() {
+        assert!(check_operating_mode(PWM_OPERATING_MODE).is_err());
+        for mode in [0, 1, 3, 4, 5] {
+            assert!(check_operating_mode(mode).is_ok());
+        }
     }
 }

@@ -467,6 +467,8 @@ impl ReachyMiniPyControlLoop {
     /// # Arguments
     /// * `mode` - Operating mode value for Stewart platform motors.
     fn set_stewart_platform_operating_mode(&self, mode: u8) -> PyResult<()> {
+        crate::controller::check_operating_mode(mode)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
         self.inner
             .push_command(MotorCommand::SetStewartPlatformOperatingMode { mode })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -477,6 +479,8 @@ impl ReachyMiniPyControlLoop {
     /// # Arguments
     /// * `mode` - Operating mode value for antennas.
     fn set_antennas_operating_mode(&self, mode: u8) -> PyResult<()> {
+        crate::controller::check_operating_mode(mode)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
         self.inner
             .push_command(MotorCommand::SetAntennasOperatingMode { mode })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
@@ -487,6 +491,8 @@ impl ReachyMiniPyControlLoop {
     /// # Arguments
     /// * `mode` - Operating mode value for body rotation motor.
     fn set_body_rotation_operating_mode(&self, mode: u8) -> PyResult<()> {
+        crate::controller::check_operating_mode(mode)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
         self.inner
             .push_command(MotorCommand::SetBodyRotationOperatingMode { mode })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
