@@ -13,6 +13,24 @@ const ANTENNAS_IDS: [u8; 2] = [17, 18]; // Right and Left antennas
 const STEWART_PLATFORM_IDS: [u8; 6] = [11, 12, 13, 14, 15, 16];
 const BODY_ROTATION_ID: u8 = 10;
 
+// Cap on the average voltage the motors see, in volts. The XL330 is rated for
+// 6.0 V at most and Reachy Mini feeds it about 7.5 V.
+const MOTOR_MAX_VOLTAGE: f64 = 6.0;
+// Supply voltage assumed when the servos' own reading is not available.
+const NOMINAL_SUPPLY_VOLTAGE: f64 = 7.6;
+const GOAL_PWM_MAX: f64 = 885.0; // 100 % duty
+
+/// Goal PWM that keeps the average motor voltage at or below MOTOR_MAX_VOLTAGE,
+/// for a supply voltage in units of 0.1 V as the servo reports it (0: no reading).
+fn goal_pwm_for(supply: u16) -> u16 {
+    let supply = if supply > 0 {
+        supply as f64 / 10.0
+    } else {
+        NOMINAL_SUPPLY_VOLTAGE
+    };
+    (GOAL_PWM_MAX * (MOTOR_MAX_VOLTAGE / supply).min(1.0)).round() as u16
+}
+
 impl ReachyMiniMotorController {
     pub fn new(serialport: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let dph_v2 = rustypot::DynamixelProtocolHandler::v2();
@@ -160,6 +178,24 @@ impl ReachyMiniMotorController {
             .map_err(|_| "Invalid voltage array length: expected 9 elements".into())
     }
         
+
+    /// Keep the average motor voltage at or below MOTOR_MAX_VOLTAGE.
+    ///
+    /// Writes the Goal PWM of every servo, which outside PWM mode is the ceiling on
+    /// its duty cycle, from the supply voltage it reports. Goal PWM goes back to
+    /// 100 % when a servo reboots or changes operating mode, so call it periodically.
+    pub fn cap_motor_voltage(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // No reading: cap for the nominal supply.
+        let supply = self.read_all_voltages().unwrap_or([0; 9]);
+        xl330::sync_write_goal_pwm(
+            &self.dph_v2,
+            self.serial_port.as_mut(),
+            &self.all_ids,
+            &supply.map(goal_pwm_for),
+        )?;
+
+        Ok(())
+    }
 
     /// Read the current position of all servos.
     /// Returns an array of 9 positions in the following order:
@@ -427,5 +463,19 @@ impl ReachyMiniMotorController {
         self.serial_port.read_exact(&mut buff)?;
 
         Ok(buff)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::goal_pwm_for;
+
+    #[test]
+    fn goal_pwm_caps_the_motor_voltage_at_6v() {
+        assert_eq!(goal_pwm_for(76), 699); // 7.6 V supply: 79 % duty
+        assert_eq!(goal_pwm_for(70), 759);
+        assert_eq!(goal_pwm_for(60), 885); // supply within the rating: no cap
+        assert_eq!(goal_pwm_for(50), 885);
+        assert_eq!(goal_pwm_for(0), 699); // no reading: nominal supply
     }
 }
