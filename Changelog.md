@@ -1,5 +1,10 @@
 # Changelog
 
+### v1.6.0
+
+* Cap the average motor voltage at 6 V (Goal PWM written from the supply voltage, refreshed every second and after each operating mode change).
+* Refuse PWM operating mode (16), incompatible with the voltage cap.
+
 ### v1.5.6
 
 * Fix control stats memory infinite growth.
