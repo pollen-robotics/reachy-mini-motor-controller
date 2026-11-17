@@ -355,6 +355,10 @@ impl ReachyMiniControlLoop {
         c.reboot(true, Duration::from_secs(1))
             .map_err(|_| MotorError::CommunicationError())?;
 
+        // Cap the motor voltage before the first command (a reboot lifts the cap)
+        with_retry(|| c.cap_motor_voltage(), read_allowed_retries)
+            .map_err(|_| MotorError::CommunicationError())?;
+
         // Init last position by trying to read current positions
         // If the init fails, it probably means we have an hardware issue
         // so it's better to fail.
@@ -570,6 +574,7 @@ fn run(
 ) {
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         let mut interval = time::interval(read_position_loop_period);
+        let mut voltage_cap_interval = time::interval(Duration::from_secs(1));
 
         // Stats related variables. Buffered locally and swapped into the shared
         // stats at each publish so they describe only the last window (otherwise
@@ -592,6 +597,11 @@ fn run(
                                 write_dt.push(elapsed);
                             }
                         }
+                    }
+                }
+                _ = voltage_cap_interval.tick() => {
+                    if let Err(e) = c.cap_motor_voltage() {
+                        log::warn!("Failed to cap the motor voltage: {}", e);
                     }
                 }
                 _ = interval.tick() => {
@@ -655,6 +665,19 @@ fn run(
             }
         }
     })
+}
+
+/// A mode change resets Goal PWM to 100 %: cap it again right away rather than
+/// at the next periodic refresh, up to a second later.
+fn recap_after_mode_change<T, E>(
+    controller: &mut ReachyMiniMotorController,
+    mode_change: &Result<T, E>,
+) {
+    if mode_change.is_ok()
+        && let Err(e) = controller.cap_motor_voltage()
+    {
+        log::warn!("Failed to cap the motor voltage after a mode change: {}", e);
+    }
 }
 
 fn handle_commands(
@@ -733,14 +756,19 @@ fn handle_commands(
             {
                 *control_mode = Ok(mode);
             }
+            recap_after_mode_change(controller, &res);
             res.map(|_| ())
         }
         SetAntennasOperatingMode { mode } => {
-            controller.set_antennas_operating_mode(mode).map(|_| ())
+            let res = controller.set_antennas_operating_mode(mode);
+            recap_after_mode_change(controller, &res);
+            res.map(|_| ())
         }
-        SetBodyRotationOperatingMode { mode } => controller
-            .set_body_rotation_operating_mode(mode)
-            .map(|_| ()),
+        SetBodyRotationOperatingMode { mode } => {
+            let res = controller.set_body_rotation_operating_mode(mode);
+            recap_after_mode_change(controller, &res);
+            res.map(|_| ())
+        }
         EnableStewartPlatform { enable } => {
             controller.enable_stewart_platform(enable).map(|_| ())
         }
