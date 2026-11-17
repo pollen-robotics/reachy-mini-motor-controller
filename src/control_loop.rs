@@ -161,6 +161,12 @@ pub enum MotorCommand {
         length: u8,
         tx: std::sync::mpsc::Sender<Vec<u8>>,
     },
+    ReadAllHardwareErrorStatuses {
+        tx: std::sync::mpsc::Sender<HashMap<u8, u8>>,
+    },
+    ReadAllVoltages {
+        tx: std::sync::mpsc::Sender<HashMap<u8, u16>>,
+    },
     WriteRawBytes {
         id: u8,
         addr: u8,
@@ -509,6 +515,26 @@ impl ReachyMiniControlLoop {
             .map_err(|_| MotorError::CommunicationError())
     }
 
+    /// Read the hardware error status of all servos with one sync-read.
+    /// Returns an error instead of partial data if any servo does not respond.
+    pub fn async_read_all_hardware_error_statuses(&self) -> Result<HashMap<u8, u8>, MotorError> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.push_command(MotorCommand::ReadAllHardwareErrorStatuses { tx })
+            .map_err(|_| MotorError::CommunicationError())?;
+        rx.recv_timeout(Duration::from_secs(1))
+            .map_err(|_| MotorError::CommunicationError())
+    }
+
+    /// Read the current input voltage of all servos with one sync-read.
+    /// Returns an error instead of partial data if any servo does not respond.
+    pub fn async_read_all_voltages(&self) -> Result<HashMap<u8, u16>, MotorError> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.push_command(MotorCommand::ReadAllVoltages { tx })
+            .map_err(|_| MotorError::CommunicationError())?;
+        rx.recv_timeout(Duration::from_secs(1))
+            .map_err(|_| MotorError::CommunicationError())
+    }
+
     pub fn async_write_raw_bytes(&self, id: u8, addr: u8, data: Vec<u8>) -> Result<(), MotorError> {
         let command = MotorCommand::WriteRawBytes { id, addr, data };
         self.push_command(command)
@@ -752,6 +778,22 @@ fn handle_commands(
                 read_allowed_retries,
             )?;
             let _ = tx.send(data);
+            Ok(())
+        }
+        ReadAllHardwareErrorStatuses { tx } => {
+            let statuses = with_retry(
+                || controller.read_all_hardware_error_statuses(),
+                read_allowed_retries,
+            )?;
+            let _ = tx.send(statuses);
+            Ok(())
+        }
+        ReadAllVoltages { tx } => {
+            let voltages = with_retry(
+                || controller.read_all_voltages_by_id(),
+                read_allowed_retries,
+            )?;
+            let _ = tx.send(voltages);
             Ok(())
         }
         WriteRawBytes { id, addr, data } => {

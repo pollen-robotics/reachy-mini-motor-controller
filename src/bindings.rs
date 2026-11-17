@@ -545,6 +545,32 @@ impl ReachyMiniPyControlLoop {
             })
     }
 
+    /// Read the hardware error status of all servos with one sync-read.
+    /// Raises an error instead of returning partial data if any servo does not respond.
+    fn async_read_all_hardware_error_statuses(&self, py: Python<'_>) -> PyResult<HashMap<u8, u8>> {
+        let inner = self.inner.clone();
+        py.detach(move || inner.async_read_all_hardware_error_statuses())
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "Failed to read hardware error statuses: {}",
+                    e
+                ))
+            })
+    }
+
+    /// Read the current input voltage of all servos with one sync-read.
+    /// Raises an error instead of returning partial data if any servo does not respond.
+    fn async_read_all_voltages(&self, py: Python<'_>) -> PyResult<HashMap<u8, u16>> {
+        let inner = self.inner.clone();
+        py.detach(move || inner.async_read_all_voltages())
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "Failed to read input voltages: {}",
+                    e
+                ))
+            })
+    }
+
     /// Perform an asynchronous raw write of motor bytes.
     /// # Arguments
     /// * `id` - Motor ID to write to.
